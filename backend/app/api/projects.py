@@ -30,6 +30,8 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
                 name=employee.name,
                 team=employee.team,
                 jira_account_id=employee.jira_account_id,
+                jira_email=employee.jira_email,
+                calendar_email=employee.calendar_email,
                 slack_user_id=employee.slack_user_id,
                 project_id=project.project_id,
             )

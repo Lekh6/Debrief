@@ -12,6 +12,11 @@ import {
   listProjects,
 } from "./lib/api";
 
+interface PushToastState {
+  successes: string[];
+  failures: string[];
+}
+
 const fallbackProjects: Project[] = [
   {
     project_id: "168d62d7-e74a-49e7-b81d-a8b83be46ea2",
@@ -76,6 +81,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [pushToast, setPushToast] = useState<PushToastState | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -99,6 +105,7 @@ export default function App() {
     setBusy(true);
     setError(null);
     setSuccessMessage(null);
+    setPushToast(null);
     try {
       const extraction = await extractMeetingTasks(payload);
       setResult(extraction);
@@ -124,8 +131,35 @@ export default function App() {
     setBusy(true);
     setError(null);
     try {
-      await confirmMeetingTasks(result.meeting_id, toConfirmTasks(reviewRows));
-      setSuccessMessage("Tasks confirmed and saved.");
+      const confirmed = await confirmMeetingTasks(result.meeting_id, toConfirmTasks(reviewRows));
+      const jiraCreated = confirmed.filter((task: any) => task.jira_status === "created").length;
+      const calendarCreated = confirmed.filter((task: any) => task.google_calendar_status === "created").length;
+      const calendarCreatedWithoutAttendee = confirmed.filter(
+        (task: any) => task.google_calendar_status === "created_without_attendee",
+      ).length;
+      const jiraFailed = confirmed.filter((task: any) => task.jira_status === "failed").length;
+      const calendarFailed = confirmed.filter((task: any) => task.google_calendar_status === "failed").length;
+      const calendarErrorSample =
+        confirmed.find((task: any) => task.google_calendar_error)?.google_calendar_error ?? null;
+      const jiraErrorSample = confirmed.find((task: any) => task.jira_error)?.jira_error ?? null;
+      setSuccessMessage(
+        `Saved ${confirmed.length} tasks.`,
+      );
+      setPushToast({
+        successes: [
+          jiraCreated ? `${jiraCreated} Jira task${jiraCreated > 1 ? "s" : ""} pushed successfully.` : "",
+          calendarCreated ? `${calendarCreated} calendar invite${calendarCreated > 1 ? "s" : ""} sent successfully.` : "",
+          calendarCreatedWithoutAttendee
+            ? `${calendarCreatedWithoutAttendee} calendar event${calendarCreatedWithoutAttendee > 1 ? "s" : ""} created without attendee invite.`
+            : "",
+        ].filter(Boolean),
+        failures: [
+          jiraFailed ? `${jiraFailed} Jira push${jiraFailed > 1 ? "es" : ""} failed.` : "",
+          calendarFailed ? `${calendarFailed} calendar push${calendarFailed > 1 ? "es" : ""} failed.` : "",
+          jiraErrorSample ? `Jira: ${jiraErrorSample}` : "",
+          calendarErrorSample ? `Calendar: ${calendarErrorSample}` : "",
+        ].filter(Boolean),
+      });
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unknown confirmation error");
     } finally {
@@ -154,6 +188,29 @@ export default function App() {
 
       {error ? <div className="banner banner-error">{error}</div> : null}
       {successMessage ? <div className="banner banner-success">{successMessage}</div> : null}
+      {pushToast ? (
+        <div className="push-toast">
+          <button className="toast-close" onClick={() => setPushToast(null)} type="button">
+            x
+          </button>
+          {pushToast.successes.length ? (
+            <div className="toast-section toast-success">
+              <strong>Succeeded</strong>
+              {pushToast.successes.map((item) => (
+                <p key={item}>{item}</p>
+              ))}
+            </div>
+          ) : null}
+          {pushToast.failures.length ? (
+            <div className="toast-section toast-failure">
+              <strong>Failed</strong>
+              {pushToast.failures.map((item) => (
+                <p key={item}>{item}</p>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <UploadPanel busy={busy} onSubmit={handleExtract} projects={projects} />
 

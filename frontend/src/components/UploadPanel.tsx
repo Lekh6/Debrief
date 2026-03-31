@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 
-import { Project } from "../lib/api";
+import { Project, getGoogleAuthStartUrl } from "../lib/api";
 
 interface UploadPanelProps {
   projects: Project[];
@@ -53,6 +53,12 @@ export function UploadPanel({ projects, onSubmit, busy }: UploadPanelProps) {
             ))}
           </select>
         </label>
+
+        {projectId ? (
+          <a className="oauth-link" href={getGoogleAuthStartUrl(projectId)} rel="noreferrer" target="_blank">
+            Connect Google Calendar for this project
+          </a>
+        ) : null}
 
         <label>
           <span>Transcript</span>

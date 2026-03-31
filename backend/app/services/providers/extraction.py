@@ -21,24 +21,35 @@ class ExtractionService:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    async def extract(self, context: ExtractionContext) -> tuple[list[ExtractedTask], str]:
+    async def extract(self, context: ExtractionContext) -> tuple[list[str], list[ExtractedTask], str]:
         if self.settings.gemini_api_key and not self.settings.use_heuristic_extractor:
-            tasks = await self._extract_with_gemini(context)
-            return tasks, "gemini"
+            summary, tasks = await self._extract_with_gemini(context)
+            return summary, tasks, "gemini"
 
-        return self._extract_heuristically(context), "heuristic"
+        return self._build_heuristic_summary(context), self._extract_heuristically(context), "heuristic"
 
-    async def _extract_with_gemini(self, context: ExtractionContext) -> list[ExtractedTask]:
+    async def _extract_with_gemini(self, context: ExtractionContext) -> tuple[list[str], list[ExtractedTask]]:
         employee_lines = [
-            f"- {employee.name} | jira={employee.jira_account_id or 'unknown'} | slack={employee.slack_user_id or 'unknown'}"
+            f"- {employee.name} | team={employee.team} | jira_account={employee.jira_account_id or 'unknown'}"
             for employee in context.employees
         ]
+        current_date = datetime.utcnow().date().isoformat()
         prompt = f"""
 System instructions:
-You extract post-meeting action items into JSON.
+You extract post-meeting action items and a host-facing meeting summary into JSON.
+The current meeting date is {current_date}.
 Use the closing transcript as the source of truth.
 Use the meeting transcript only to fill missing details.
 Only include actionable tasks that should become work items.
+Meeting summary rules:
+- Return n concise bullet-style lines in a top-level "meeting_summary" array.
+- Choose n based on meeting complexity. Around 5 lines is generous for a 150-word meeting.
+- Include only explicit work points and final decisions taken by the host or agreed in the meeting.
+- Do not include dilemmas, open questions, or half-made decisions.
+- Prefer lines like "Rahul Mehta to finish the landing page by Monday" or "No clear owner for database work".
+- If a person's name appears with a task, usually treat that person as the assignee.
+- If assignment is implied but not fully clear, still connect the task to that person but mark the assignee confidence as medium.
+- Convert common talk such as "next Monday" or "this Friday" into exact ISO dates using the current meeting date.
 Return valid JSON matching the provided schema.
 
 Project employees:
@@ -52,6 +63,7 @@ Meeting transcript:
 
 Return JSON in this shape:
 {{
+  "meeting_summary": ["string"],
   "tasks": [
     {{
       "title": "string",
@@ -94,7 +106,9 @@ Return JSON in this shape:
         if parsed is None:
             raise RuntimeError(f"Gemini extraction failed after retries: {last_error}")
 
-        return [self._to_task(item, context.employees) for item in parsed.get("tasks", [])]
+        summary = [str(item).strip() for item in parsed.get("meeting_summary", []) if str(item).strip()]
+        tasks = [self._to_task(item, context.employees) for item in parsed.get("tasks", [])]
+        return summary[:5], tasks
 
     async def _call_gemini_api(self, prompt: str, repair_instruction: str) -> str:
         payload = {
@@ -113,6 +127,10 @@ Return JSON in this shape:
                 "responseJsonSchema": {
                     "type": "object",
                     "properties": {
+                        "meeting_summary": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
                         "tasks": {
                             "type": "array",
                             "items": {
@@ -148,7 +166,7 @@ Return JSON in this shape:
                             },
                         }
                     },
-                    "required": ["tasks"],
+                    "required": ["meeting_summary", "tasks"],
                 },
             },
         }
@@ -211,6 +229,22 @@ Return JSON in this shape:
             )
 
         return tasks
+
+    def _build_heuristic_summary(self, context: ExtractionContext) -> list[str]:
+        segments = self._split_action_segments(context.closing_transcript or context.meeting_transcript)
+        summary: list[str] = []
+        for segment in segments:
+            assignee = self._match_employee(segment, context.employees)
+            deadline, _, _ = self._parse_deadline(segment)
+            cleaned = " ".join(segment.strip().split())
+            if assignee and assignee.name.lower() not in cleaned.lower():
+                cleaned = f"{assignee.name} to {cleaned[0].lower() + cleaned[1:]}"
+            if deadline and deadline.isoformat() not in cleaned:
+                cleaned = f"{cleaned} ({deadline.isoformat()})"
+            summary.append(cleaned)
+            if len(summary) == 5:
+                break
+        return summary
 
     def _to_task(self, item: dict, employees: list[Employee]) -> ExtractedTask:
         assignee_name = item.get("assignee")
@@ -285,6 +319,10 @@ Return JSON in this shape:
             "sunday": 6,
         }
         for label, weekday in weekdays.items():
+            if f"next {label}" in lowered:
+                return self._next_weekday(today + timedelta(days=7), weekday), "medium", f"Derived from relative reference 'next {label}'."
+            if f"this {label}" in lowered:
+                return self._next_weekday(today, weekday), "medium", f"Derived from relative reference 'this {label}'."
             if label in lowered:
                 return self._next_weekday(today, weekday), "medium", f"Derived from weekday reference '{label}'."
 

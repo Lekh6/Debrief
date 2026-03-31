@@ -115,19 +115,26 @@ async def confirm_meeting_tasks(
                 title=item.title,
                 description=item.description,
                 assignee_account_id=assignee.jira_account_id if assignee else None,
+                assignee_email=assignee.jira_email if assignee else None,
                 due_date=item.deadline.isoformat() if item.deadline else None,
             )
             new_task.jira_issue_id = jira_result.issue_id
-            new_task.status = jira_result.status
+            new_task.jira_status = jira_result.status
+            new_task.jira_error = jira_result.error
 
         if settings.auto_create_google_calendar_on_confirm:
             calendar_result = await google_calendar_service.create_event(
+                db=db,
+                project_id=str(meeting.project_id),
                 title=item.title,
                 description=item.description,
                 due_date=item.deadline.isoformat() if item.deadline else None,
                 assignee_name=assignee.name if assignee else item.assignee_name,
+                assignee_email=assignee.calendar_email if assignee else None,
             )
             new_task.google_calendar_event_id = calendar_result.event_id
+            new_task.google_calendar_status = calendar_result.status
+            new_task.google_calendar_error = calendar_result.error
 
         if settings.auto_notify_slack_on_confirm:
             slack_result = await slack_service.send_task_dm(
@@ -139,6 +146,10 @@ async def confirm_meeting_tasks(
 
         confirmed_tasks.append(new_task)
 
+    meeting.status = "confirmed"
+    for task in confirmed_tasks:
+        if task.jira_status == "created" or task.google_calendar_status == "created":
+            task.status = "pushed"
     meeting.status = "confirmed"
     db.commit()
 

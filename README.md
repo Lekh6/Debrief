@@ -16,6 +16,8 @@ Greenfield scaffold for the post-meeting task automation workflow described in t
 - Confidence-aware task extraction response shape
 - Meeting confirmation endpoint and meeting history endpoint
 - Lightweight React UI for upload, review, inline edit, employee-based assignee correction, and confirm
+- Google Calendar integration is about 90% working:
+  event creation and deadline pushes work, OAuth2 flow is scaffolded, and the main remaining blocker is Google OAuth test-user / verification setup
 - Integration seams for Jira and Slack so Phase 3 and Phase 4 can slot in without a rewrite
 
 ## Current assumptions
@@ -56,6 +58,6 @@ npm run dev
 1. Validate extraction quality against real meeting transcripts.
 2. Add Jira OAuth and issue creation.
 3. Add Slack OAuth, DMs, and channel summaries.
-4. Activate Google Calendar event creation once credentials are supplied.
+4. Finish Google OAuth testing setup so attendee invites send through the connected host account.
 5. Build the meeting history page with live Jira status pulls.
 6. Move from `create_all()` bootstrapping to migrations.

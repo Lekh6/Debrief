@@ -38,6 +38,9 @@ class Settings(BaseSettings):
 
     google_calendar_id: str | None = None
     google_service_account_json: str | None = None
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    google_oauth_redirect_uri: str | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod

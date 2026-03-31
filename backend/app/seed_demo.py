@@ -8,9 +8,9 @@ DEMO_PROJECTS = [
         "jira_project_key": "WRD",
         "slack_channel_id": "C-DEMO-WEB",
         "employees": [
-            {"name": "John Carter", "team": "Website", "jira_account_id": "jira-john-carter", "slack_user_id": "UJOHN001"},
-            {"name": "Maya Lee", "team": "Website", "jira_account_id": "jira-maya-lee", "slack_user_id": "UMAYA001"},
-            {"name": "Priya Nair", "team": "Website", "jira_account_id": "jira-priya-nair", "slack_user_id": "UPRIYA01"},
+            {"name": "John Carter", "team": "Website", "jira_account_id": "jira-john-carter", "jira_email": "john.carter@example.com", "calendar_email": "john.carter@example.com", "slack_user_id": "UJOHN001"},
+            {"name": "Maya Lee", "team": "Website", "jira_account_id": "jira-maya-lee", "jira_email": "maya.lee@example.com", "calendar_email": "maya.lee@example.com", "slack_user_id": "UMAYA001"},
+            {"name": "Priya Nair", "team": "Website", "jira_account_id": "jira-priya-nair", "jira_email": "priya.nair@example.com", "calendar_email": "priya.nair@example.com", "slack_user_id": "UPRIYA01"},
         ],
     },
     {
@@ -18,9 +18,9 @@ DEMO_PROJECTS = [
         "jira_project_key": "MLD",
         "slack_channel_id": "C-DEMO-MOBILE",
         "employees": [
-            {"name": "Arjun Patel", "team": "Engineering", "jira_account_id": "jira-arjun-patel", "slack_user_id": "UARJUN01"},
-            {"name": "Sara Kim", "team": "QA", "jira_account_id": "jira-sara-kim", "slack_user_id": "USARA001"},
-            {"name": "Leo Grant", "team": "Product", "jira_account_id": "jira-leo-grant", "slack_user_id": "ULEO0001"},
+            {"name": "Arjun Patel", "team": "Engineering", "jira_account_id": "jira-arjun-patel", "jira_email": "arjun.patel@example.com", "calendar_email": "arjun.patel@example.com", "slack_user_id": "UARJUN01"},
+            {"name": "Sara Kim", "team": "QA", "jira_account_id": "jira-sara-kim", "jira_email": "sara.kim@example.com", "calendar_email": "sara.kim@example.com", "slack_user_id": "USARA001"},
+            {"name": "Leo Grant", "team": "Product", "jira_account_id": "jira-leo-grant", "jira_email": "leo.grant@example.com", "calendar_email": "leo.grant@example.com", "slack_user_id": "ULEO0001"},
         ],
     },
     {
@@ -28,8 +28,8 @@ DEMO_PROJECTS = [
         "jira_project_key": "CSR",
         "slack_channel_id": "C-DEMO-CS",
         "employees": [
-            {"name": "Nina Brooks", "team": "Customer Success", "jira_account_id": "jira-nina-brooks", "slack_user_id": "UNINA001"},
-            {"name": "Omar Hassan", "team": "Operations", "jira_account_id": "jira-omar-hassan", "slack_user_id": "UOMAR001"},
+            {"name": "Nina Brooks", "team": "Customer Success", "jira_account_id": "jira-nina-brooks", "jira_email": "nina.brooks@example.com", "calendar_email": "nina.brooks@example.com", "slack_user_id": "UNINA001"},
+            {"name": "Omar Hassan", "team": "Operations", "jira_account_id": "jira-omar-hassan", "jira_email": "omar.hassan@example.com", "calendar_email": "omar.hassan@example.com", "slack_user_id": "UOMAR001"},
         ],
     },
     {
@@ -37,9 +37,9 @@ DEMO_PROJECTS = [
         "jira_project_key": "DPU",
         "slack_channel_id": "C-DEMO-DATA",
         "employees": [
-            {"name": "Eva Stone", "team": "Data Engineering", "jira_account_id": "jira-eva-stone", "slack_user_id": "UEVA0001"},
-            {"name": "Rahul Mehta", "team": "Platform", "jira_account_id": "jira-rahul-mehta", "slack_user_id": "URAHUL01"},
-            {"name": "Clara Zhou", "team": "Analytics", "jira_account_id": "jira-clara-zhou", "slack_user_id": "UCLARA01"},
+            {"name": "Eva Stone", "team": "Data Engineering", "jira_account_id": "jira-eva-stone", "jira_email": "anon101030@gmail.com", "calendar_email": "anon101030@gmail.com", "slack_user_id": "UEVA0001"},
+            {"name": "Rahul Mehta", "team": "Platform", "jira_account_id": "jira-rahul-mehta", "jira_email": "lekharuthwik@gmail.com", "calendar_email": "lekharuthwik@gmail.com", "slack_user_id": "URAHUL01"},
+            {"name": "Clara Zhou", "team": "Analytics", "jira_account_id": "jira-clara-zhou", "jira_email": "lekharuthwik265@gmail.com", "calendar_email": "lekharuthwik265@gmail.com", "slack_user_id": "UCLARA01"},
         ],
     },
 ]
@@ -53,6 +53,16 @@ def main() -> None:
         for project_data in DEMO_PROJECTS:
             existing = db.query(Project).filter(Project.name == project_data["name"]).one_or_none()
             if existing:
+                employees_by_name = {employee.name: employee for employee in db.query(Employee).filter(Employee.project_id == existing.project_id).all()}
+                for employee_data in project_data["employees"]:
+                    current = employees_by_name.get(employee_data["name"])
+                    if current:
+                        current.team = employee_data["team"]
+                        current.jira_account_id = employee_data["jira_account_id"]
+                        current.jira_email = employee_data["jira_email"]
+                        current.calendar_email = employee_data["calendar_email"]
+                        current.slack_user_id = employee_data["slack_user_id"]
+                db.commit()
                 print(f"Exists: {project_data['name']} -> {existing.project_id}")
                 continue
 
@@ -70,6 +80,8 @@ def main() -> None:
                         name=employee["name"],
                         team=employee["team"],
                         jira_account_id=employee["jira_account_id"],
+                        jira_email=employee["jira_email"],
+                        calendar_email=employee["calendar_email"],
                         slack_user_id=employee["slack_user_id"],
                         project_id=project.project_id,
                     )

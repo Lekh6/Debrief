@@ -63,7 +63,11 @@ class ConfirmedTaskRead(BaseModel):
     confidence: TaskConfidence = Field(default_factory=TaskConfidence)
     confidence_reasons: dict[str, str] = Field(default_factory=dict)
     jira_issue_id: str | None = None
+    jira_status: str = "not_sent"
+    jira_error: str | None = None
     google_calendar_event_id: str | None = None
+    google_calendar_status: str = "not_sent"
+    google_calendar_error: str | None = None
     status: str
     slack_delivery_status: str
 

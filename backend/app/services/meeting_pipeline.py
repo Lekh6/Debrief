@@ -27,7 +27,7 @@ class MeetingPipeline:
         resolved_meeting_transcript = await self._resolve_transcript(meeting_transcript, meeting_audio)
         resolved_closing_transcript = await self._resolve_transcript(closing_transcript, closing_audio)
 
-        extracted_tasks, extraction_mode = await self.extraction_service.extract(
+        meeting_summary, extracted_tasks, extraction_mode = await self.extraction_service.extract(
             ExtractionContext(
                 closing_transcript=resolved_closing_transcript,
                 meeting_transcript=resolved_meeting_transcript,
@@ -67,7 +67,7 @@ class MeetingPipeline:
             project_name=project.name,
             meeting_transcript=resolved_meeting_transcript,
             closing_transcript=resolved_closing_transcript,
-            meeting_summary=self._build_meeting_summary(resolved_closing_transcript, resolved_meeting_transcript),
+            meeting_summary=meeting_summary or self._build_meeting_summary(resolved_closing_transcript, resolved_meeting_transcript),
             tasks=extracted_tasks,
             extraction_mode=extraction_mode,
             employees=[EmployeeRead.model_validate(employee) for employee in project.employees],

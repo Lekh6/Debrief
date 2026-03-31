@@ -8,6 +8,8 @@ class EmployeeCreate(BaseModel):
     name: str
     team: str = "General"
     jira_account_id: str | None = None
+    jira_email: str | None = None
+    calendar_email: str | None = None
     slack_user_id: str | None = None
 
 

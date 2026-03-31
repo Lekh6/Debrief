@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.auth import router as google_auth_router
 from app.api.meetings import router as meetings_router
 from app.api.projects import router as projects_router
 from app.core.config import get_settings
@@ -32,3 +33,4 @@ def healthcheck() -> dict[str, str]:
 
 app.include_router(projects_router, prefix=settings.api_prefix)
 app.include_router(meetings_router, prefix=settings.api_prefix)
+app.include_router(google_auth_router, prefix=settings.api_prefix)

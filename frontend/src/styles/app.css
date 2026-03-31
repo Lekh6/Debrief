@@ -234,6 +234,69 @@ textarea {
   color: var(--success);
 }
 
+.push-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 20;
+  transform: translateX(-50%);
+  width: min(920px, calc(100vw - 24px));
+  padding: 14px 18px;
+  border: 1px solid rgba(75, 163, 255, 0.28);
+  border-radius: 16px;
+  background: rgba(7, 15, 29, 0.96);
+  color: var(--text);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+  animation: toast-in 220ms ease-out;
+  display: grid;
+  gap: 12px;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.toast-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.toast-section {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+.toast-section strong,
+.toast-section p {
+  margin: 0;
+}
+
+.toast-success {
+  border: 1px solid rgba(85, 193, 255, 0.28);
+  background: rgba(19, 62, 98, 0.35);
+}
+
+.toast-failure {
+  border: 1px solid rgba(255, 109, 122, 0.28);
+  background: rgba(87, 22, 33, 0.42);
+}
+
 .task-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -471,6 +534,13 @@ textarea {
 .demo-details summary {
   cursor: pointer;
   color: var(--muted);
+}
+
+.oauth-link {
+  width: fit-content;
+  color: #8bc2ff;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(139, 194, 255, 0.38);
 }
 
 .team-stack {

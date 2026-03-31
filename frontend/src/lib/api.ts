@@ -13,6 +13,8 @@ export interface Employee {
   name: string;
   team: string;
   jira_account_id: string | null;
+  jira_email: string | null;
+  calendar_email: string | null;
   slack_user_id: string | null;
 }
 
@@ -77,6 +79,10 @@ export interface HostReviewRow {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+
+export function getGoogleAuthStartUrl(projectId: string) {
+  return `${API_BASE_URL}/auth/google/start?project_id=${encodeURIComponent(projectId)}`;
+}
 
 export async function listProjects(): Promise<Project[]> {
   const response = await fetch(`${API_BASE_URL}/projects`);
