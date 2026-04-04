@@ -110,39 +110,50 @@ async def confirm_meeting_tasks(
         db.flush()
 
         if settings.auto_create_jira_on_confirm:
-            jira_result = await jira_service.create_issue(
-                project_key=meeting.project.jira_project_key,
-                title=item.title,
-                description=item.description,
-                assignee_account_id=assignee.jira_account_id if assignee else None,
-                assignee_email=assignee.jira_email if assignee else None,
-                due_date=item.deadline.isoformat() if item.deadline else None,
-            )
-            new_task.jira_issue_id = jira_result.issue_id
-            new_task.jira_status = jira_result.status
-            new_task.jira_error = jira_result.error
+            try:
+                jira_result = await jira_service.create_issue(
+                    project_key=meeting.project.jira_project_key,
+                    title=item.title,
+                    description=item.description,
+                    assignee_account_id=assignee.jira_account_id if assignee else None,
+                    assignee_email=assignee.jira_email if assignee else None,
+                    due_date=item.deadline.isoformat() if item.deadline else None,
+                )
+                new_task.jira_issue_id = jira_result.issue_id
+                new_task.jira_status = jira_result.status
+                new_task.jira_error = jira_result.error
+            except Exception as exc:
+                new_task.jira_status = "failed"
+                new_task.jira_error = str(exc)
 
         if settings.auto_create_google_calendar_on_confirm:
-            calendar_result = await google_calendar_service.create_event(
-                db=db,
-                project_id=str(meeting.project_id),
-                title=item.title,
-                description=item.description,
-                due_date=item.deadline.isoformat() if item.deadline else None,
-                assignee_name=assignee.name if assignee else item.assignee_name,
-                assignee_email=assignee.calendar_email if assignee else None,
-            )
-            new_task.google_calendar_event_id = calendar_result.event_id
-            new_task.google_calendar_status = calendar_result.status
-            new_task.google_calendar_error = calendar_result.error
+            try:
+                calendar_result = await google_calendar_service.create_event(
+                    db=db,
+                    project_id=meeting.project_id,
+                    title=item.title,
+                    description=item.description,
+                    due_date=item.deadline.isoformat() if item.deadline else None,
+                    assignee_name=assignee.name if assignee else item.assignee_name,
+                    assignee_email=assignee.calendar_email if assignee else None,
+                )
+                new_task.google_calendar_event_id = calendar_result.event_id
+                new_task.google_calendar_status = calendar_result.status
+                new_task.google_calendar_error = calendar_result.error
+            except Exception as exc:
+                new_task.google_calendar_status = "failed"
+                new_task.google_calendar_error = str(exc)
 
         if settings.auto_notify_slack_on_confirm:
-            slack_result = await slack_service.send_task_dm(
-                slack_user_id=assignee.slack_user_id if assignee else None,
-                title=item.title,
-                jira_link=new_task.jira_issue_id,
-            )
-            new_task.slack_delivery_status = slack_result.status
+            try:
+                slack_result = await slack_service.send_task_dm(
+                    slack_user_id=assignee.slack_user_id if assignee else None,
+                    title=item.title,
+                    jira_link=new_task.jira_issue_id,
+                )
+                new_task.slack_delivery_status = slack_result.status
+            except Exception:
+                new_task.slack_delivery_status = "failed"
 
         confirmed_tasks.append(new_task)
 

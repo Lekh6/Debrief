@@ -44,7 +44,12 @@ async def google_oauth_callback(code: str, state: str, db: Session = Depends(get
     if not settings.google_oauth_client_id or not settings.google_oauth_client_secret or not settings.google_oauth_redirect_uri:
         raise HTTPException(status_code=400, detail="Google OAuth is not configured.")
 
-    project = db.query(Project).filter(Project.project_id == state).one_or_none()
+    try:
+        project_id = UUID(state)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid OAuth state payload.") from exc
+
+    project = db.query(Project).filter(Project.project_id == project_id).one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found for OAuth callback.")
 

@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from uuid import UUID
 
 import httpx
 from google.auth.transport.requests import Request
@@ -25,7 +26,7 @@ class GoogleCalendarService:
     async def create_event(
         self,
         db: Session,
-        project_id: str,
+        project_id: UUID | str,
         title: str,
         description: str,
         due_date: str | None,
@@ -113,7 +114,13 @@ class GoogleCalendarService:
         current = date.fromisoformat(due_date)
         return (current + timedelta(days=1)).isoformat()
 
-    async def _get_google_access_token(self, db: Session, project_id: str) -> str | None:
+    async def _get_google_access_token(self, db: Session, project_id: UUID | str) -> str | None:
+        if isinstance(project_id, str):
+            try:
+                project_id = UUID(project_id)
+            except ValueError:
+                return None
+
         credential = (
             db.query(GoogleOAuthCredential)
             .filter(GoogleOAuthCredential.project_id == project_id)

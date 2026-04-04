@@ -39,7 +39,7 @@ DEMO_PROJECTS = [
         "employees": [
             {"name": "Eva Stone", "team": "Data Engineering", "jira_account_id": "jira-eva-stone", "jira_email": "anon101030@gmail.com", "calendar_email": "anon101030@gmail.com", "slack_user_id": "UEVA0001"},
             {"name": "Rahul Mehta", "team": "Platform", "jira_account_id": "jira-rahul-mehta", "jira_email": "lekharuthwik@gmail.com", "calendar_email": "lekharuthwik@gmail.com", "slack_user_id": "URAHUL01"},
-            {"name": "Clara Zhou", "team": "Analytics", "jira_account_id": "jira-clara-zhou", "jira_email": "lekharuthwik265@gmail.com", "calendar_email": "lekharuthwik265@gmail.com", "slack_user_id": "UCLARA01"},
+            {"name": "Clara Zhou", "team": "Analytics", "jira_account_id": "jira-clara-zhou", "jira_email": "Sashreek.addanki@gmail.com", "calendar_email": "Sashreek.addanki@gmail.com", "slack_user_id": "UCLARA01"},
         ],
     },
 ]
