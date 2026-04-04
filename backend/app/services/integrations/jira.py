@@ -24,6 +24,10 @@ class JiraService:
         assignee_account_id: str | None,
         assignee_email: str | None,
         due_date: str | None,
+        meeting_transcript: str | None = None,
+        closing_transcript: str | None = None,
+        assignee_name: str | None = None,
+        team_name: str | None = None,
     ) -> JiraCreateResult:
         if not self.settings.jira_base_url or not self.settings.jira_user_email or not self.settings.jira_api_token:
             return JiraCreateResult(
@@ -38,27 +42,21 @@ class JiraService:
             "fields": {
                 "project": {"key": project_key},
                 "summary": title,
-                "description": {
-                    "type": "doc",
-                    "version": 1,
-                    "content": [
-                        {
-                            "type": "paragraph",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": description or title,
-                                }
-                            ],
-                        }
-                    ],
-                },
+                "description": self._build_description_document(
+                    title=title,
+                    description=description,
+                    due_date=due_date,
+                    assignee_name=assignee_name,
+                    team_name=team_name,
+                    closing_transcript=closing_transcript,
+                    meeting_transcript=meeting_transcript,
+                ),
                 "issuetype": {"name": "Task"},
             }
         }
         resolved_account_id = assignee_account_id or await self._lookup_account_id_by_email(assignee_email)
         if resolved_account_id:
-            payload["fields"]["assignee"] = {"id": resolved_account_id}
+            payload["fields"]["assignee"] = {"accountId": resolved_account_id}
         if due_date:
             payload["fields"]["duedate"] = due_date
 
@@ -100,3 +98,59 @@ class JiraService:
         exact = next((user for user in users if user.get("emailAddress") == assignee_email), None)
         selected = exact or users[0]
         return selected.get("accountId")
+
+    def _build_description_document(
+        self,
+        title: str,
+        description: str,
+        due_date: str | None,
+        assignee_name: str | None,
+        team_name: str | None,
+        closing_transcript: str | None,
+        meeting_transcript: str | None,
+    ) -> dict:
+        content: list[dict] = []
+
+        def heading(text: str) -> None:
+            content.append(
+                {
+                    "type": "heading",
+                    "attrs": {"level": 3},
+                    "content": [{"type": "text", "text": text}],
+                }
+            )
+
+        def paragraph(text: str) -> None:
+            if not text:
+                return
+            content.append(
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": text}],
+                }
+            )
+
+        heading("Task")
+        paragraph(description or title)
+
+        details: list[str] = []
+        if assignee_name:
+            details.append(f"Assignee: {assignee_name}")
+        if team_name:
+            details.append(f"Team: {team_name}")
+        if due_date:
+            details.append(f"Due date: {due_date}")
+        if details:
+            heading("Assignment details")
+            for item in details:
+                paragraph(item)
+
+        if closing_transcript:
+            heading("Closing statement")
+            paragraph(closing_transcript)
+
+        if meeting_transcript:
+            heading("Meeting transcript")
+            paragraph(meeting_transcript)
+
+        return {"type": "doc", "version": 1, "content": content}

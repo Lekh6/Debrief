@@ -118,6 +118,10 @@ async def confirm_meeting_tasks(
                     assignee_account_id=assignee.jira_account_id if assignee else None,
                     assignee_email=assignee.jira_email if assignee else None,
                     due_date=item.deadline.isoformat() if item.deadline else None,
+                    meeting_transcript=meeting.meeting_transcript,
+                    closing_transcript=meeting.closing_transcript,
+                    assignee_name=assignee.name if assignee else item.assignee_name,
+                    team_name=assignee.team if assignee else None,
                 )
                 new_task.jira_issue_id = jira_result.issue_id
                 new_task.jira_status = jira_result.status

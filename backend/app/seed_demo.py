@@ -34,12 +34,12 @@ DEMO_PROJECTS = [
     },
     {
         "name": "Data Platform Upgrade",
-        "jira_project_key": "DPU",
+        "jira_project_key": "KAN",
         "slack_channel_id": "C-DEMO-DATA",
         "employees": [
             {"name": "Eva Stone", "team": "Data Engineering", "jira_account_id": "jira-eva-stone", "jira_email": "anon101030@gmail.com", "calendar_email": "anon101030@gmail.com", "slack_user_id": "UEVA0001"},
             {"name": "Rahul Mehta", "team": "Platform", "jira_account_id": "jira-rahul-mehta", "jira_email": "lekharuthwik@gmail.com", "calendar_email": "lekharuthwik@gmail.com", "slack_user_id": "URAHUL01"},
-            {"name": "Clara Zhou", "team": "Analytics", "jira_account_id": "jira-clara-zhou", "jira_email": "Sashreek.addanki@gmail.com", "calendar_email": "Sashreek.addanki@gmail.com", "slack_user_id": "UCLARA01"},
+            {"name": "Clara Zhou", "team": "Analytics", "jira_account_id": "712020:7a900cde-636a-4f29-8b18-c82e6b78634a", "jira_email": "sashreek.addanki@gmail.com", "calendar_email": "sashreek.addanki@gmail.com", "slack_user_id": "UCLARA01"},
         ],
     },
 ]
@@ -53,6 +53,8 @@ def main() -> None:
         for project_data in DEMO_PROJECTS:
             existing = db.query(Project).filter(Project.name == project_data["name"]).one_or_none()
             if existing:
+                existing.jira_project_key = project_data["jira_project_key"]
+                existing.slack_channel_id = project_data["slack_channel_id"]
                 employees_by_name = {employee.name: employee for employee in db.query(Employee).filter(Employee.project_id == existing.project_id).all()}
                 for employee_data in project_data["employees"]:
                     current = employees_by_name.get(employee_data["name"])
