@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from uuid import UUID
 
 import httpx
 from google.auth.transport.requests import Request
@@ -25,7 +26,7 @@ class GoogleCalendarService:
     async def create_event(
         self,
         db: Session,
-        project_id: str,
+        project_id: UUID | str,
         title: str,
         description: str,
         due_date: str | None,
@@ -78,6 +79,14 @@ class GoogleCalendarService:
             data = response.json()
             return GoogleCalendarResult(event_id=data.get("id"), status="created")
 
+        if response.status_code == 401:
+            await self._delete_project_credential(db=db, project_id=project_id)
+            return GoogleCalendarResult(
+                event_id=None,
+                status="needs_reconnect",
+                error="Google Calendar authorization expired or was revoked. Reconnect Google Calendar for this project and try again.",
+            )
+
         if assignee_email and "forbiddenForServiceAccounts" in response.text:
             payload.pop("attendees", None)
             payload["description"] = (
@@ -113,7 +122,13 @@ class GoogleCalendarService:
         current = date.fromisoformat(due_date)
         return (current + timedelta(days=1)).isoformat()
 
-    async def _get_google_access_token(self, db: Session, project_id: str) -> str | None:
+    async def _get_google_access_token(self, db: Session, project_id: UUID | str) -> str | None:
+        if isinstance(project_id, str):
+            try:
+                project_id = UUID(project_id)
+            except ValueError:
+                return None
+
         credential = (
             db.query(GoogleOAuthCredential)
             .filter(GoogleOAuthCredential.project_id == project_id)
@@ -134,7 +149,7 @@ class GoogleCalendarService:
             return credential.access_token
 
         if not credential.refresh_token or not self.settings.google_oauth_client_id or not self.settings.google_oauth_client_secret:
-            return credential.access_token
+            return None
 
         async with httpx.AsyncClient(timeout=30) as client:
             token_response = await client.post(
@@ -147,7 +162,9 @@ class GoogleCalendarService:
                 },
             )
         if not token_response.is_success:
-            return credential.access_token
+            db.delete(credential)
+            db.commit()
+            return None
 
         payload = token_response.json()
         credential.access_token = payload["access_token"]
@@ -156,3 +173,18 @@ class GoogleCalendarService:
         ).replace(tzinfo=None)
         db.commit()
         return credential.access_token
+
+    async def _delete_project_credential(self, db: Session, project_id: UUID | str) -> None:
+        if isinstance(project_id, str):
+            try:
+                project_id = UUID(project_id)
+            except ValueError:
+                return
+        credential = (
+            db.query(GoogleOAuthCredential)
+            .filter(GoogleOAuthCredential.project_id == project_id)
+            .one_or_none()
+        )
+        if credential is not None:
+            db.delete(credential)
+            db.commit()

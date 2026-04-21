@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
 
-import { Employee, ExtractionResponse, HostReviewRow } from "../lib/api";
+import { DeliveryTargets, Employee, ExtractionResponse, HostReviewRow } from "../lib/api";
 
 interface ConfirmationModalProps {
   result: ExtractionResponse | null;
   rows: HostReviewRow[];
   employees: Employee[];
   busy: boolean;
+  deliveryTargets: DeliveryTargets;
   onRowChange: (index: number, updates: Partial<HostReviewRow>) => void;
+  onDeliveryTargetChange: (updates: Partial<DeliveryTargets>) => void;
   onClose: () => void;
   onConfirm: () => Promise<void>;
 }
@@ -27,7 +29,9 @@ export function ConfirmationModal({
   rows,
   employees,
   busy,
+  deliveryTargets,
   onRowChange,
+  onDeliveryTargetChange,
   onClose,
   onConfirm,
 }: ConfirmationModalProps) {
@@ -122,7 +126,14 @@ export function ConfirmationModal({
                           return (
                             <div className="member-editor" key={row.employee_id}>
                               <div className="member-heading">
-                                <strong>{row.employee_name}</strong>
+                                <label className="member-include">
+                                  <input
+                                    checked={row.included}
+                                    type="checkbox"
+                                    onChange={(event) => onRowChange(rowIndex, { included: event.target.checked })}
+                                  />
+                                  <strong>{row.employee_name}</strong>
+                                </label>
                                 <span>{row.team}</span>
                               </div>
 
@@ -176,7 +187,18 @@ export function ConfirmationModal({
               {selectedRow ? (
                 <div className="member-editor single-member-editor">
                   <div className="member-heading">
-                    <strong>{selectedRow.employee_name}</strong>
+                    <label className="member-include">
+                      <input
+                        checked={selectedRow.included}
+                        type="checkbox"
+                        onChange={(event) =>
+                          onRowChange(rows.findIndex((entry) => entry.employee_id === selectedRow.employee_id), {
+                            included: event.target.checked,
+                          })
+                        }
+                      />
+                      <strong>{selectedRow.employee_name}</strong>
+                    </label>
                     <span>{selectedRow.team}</span>
                   </div>
 
@@ -212,12 +234,45 @@ export function ConfirmationModal({
           </section>
         )}
 
+        <section className="delivery-section">
+          <div>
+            <h3>Push destinations</h3>
+            <p className="muted">Select which platforms to update on:</p>
+          </div>
+          <div className="delivery-options">
+            <label>
+              <input
+                checked={deliveryTargets.google_calendar}
+                type="checkbox"
+                onChange={(event) => onDeliveryTargetChange({ google_calendar: event.target.checked })}
+              />
+              Google Calendar
+            </label>
+            <label>
+              <input
+                checked={deliveryTargets.jira}
+                type="checkbox"
+                onChange={(event) => onDeliveryTargetChange({ jira: event.target.checked })}
+              />
+              Jira
+            </label>
+            <label>
+              <input
+                checked={deliveryTargets.slack}
+                type="checkbox"
+                onChange={(event) => onDeliveryTargetChange({ slack: event.target.checked })}
+              />
+              Slack
+            </label>
+          </div>
+        </section>
+
         <div className="modal-actions">
           <button className="secondary-button" onClick={onClose} type="button">
             Clear review
           </button>
           <button className="primary-button" disabled={busy} onClick={() => void onConfirm()} type="button">
-            {busy ? "Preparing push..." : "Confirm for Jira and Calendar"}
+            {busy ? "Preparing push..." : "Confirm selected updates"}
           </button>
         </div>
       </section>

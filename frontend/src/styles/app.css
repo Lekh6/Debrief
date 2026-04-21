@@ -45,6 +45,11 @@ select {
   font: inherit;
 }
 
+input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--primary);
+}
+
 button {
   cursor: pointer;
 }
@@ -57,6 +62,76 @@ button {
   width: min(1180px, calc(100vw - 32px));
   margin: 0 auto;
   padding: 36px 0 72px;
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: min(520px, 100%);
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  background:
+    linear-gradient(160deg, rgba(13, 26, 49, 0.96), rgba(7, 15, 29, 0.9)),
+    radial-gradient(circle at top right, rgba(75, 163, 255, 0.2), transparent 40%);
+  box-shadow: var(--shadow);
+}
+
+.login-card h1 {
+  margin: 0 0 12px;
+  font-size: clamp(2rem, 7vw, 3.8rem);
+  line-height: 0.96;
+  letter-spacing: -0.05em;
+}
+
+.login-form,
+.management-form {
+  display: grid;
+  gap: 14px;
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(10, 18, 34, 0.72);
+  box-shadow: var(--shadow);
+}
+
+.app-nav p,
+.app-nav strong {
+  margin: 0;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nav-button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  padding: 10px 16px;
+  font-weight: 700;
+}
+
+.nav-button.active {
+  border-color: rgba(75, 163, 255, 0.58);
+  background: rgba(75, 163, 255, 0.18);
 }
 
 .hero {
@@ -524,6 +599,143 @@ textarea {
   margin-top: 22px;
 }
 
+.delivery-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.delivery-section h3,
+.delivery-section p {
+  margin: 0;
+}
+
+.delivery-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.delivery-options label,
+.member-include {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delivery-options label {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(10, 21, 39, 0.78);
+  color: var(--text);
+}
+
+.member-include {
+  color: var(--text);
+}
+
+.member-include input {
+  margin: 0;
+}
+
+.management-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.management-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.management-form {
+  align-content: start;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(10, 21, 39, 0.74);
+}
+
+.management-form h3 {
+  margin: 0;
+}
+
+.project-directory {
+  display: grid;
+  gap: 18px;
+}
+
+.directory-project {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(6, 14, 28, 0.74);
+}
+
+.directory-project-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.directory-project-header h3,
+.directory-project-header p {
+  margin: 0;
+}
+
+.directory-project-header p,
+.directory-project-header span {
+  color: var(--muted);
+}
+
+.directory-team {
+  margin-top: 16px;
+}
+
+.directory-team h4 {
+  margin: 0 0 10px;
+}
+
+.member-table {
+  display: grid;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.member-table-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1.3fr 1.3fr 0.8fr;
+  min-width: 760px;
+}
+
+.member-table-row span {
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.member-table-row:first-child span {
+  border-top: none;
+}
+
+.member-table-head span {
+  color: var(--text);
+  background: rgba(75, 163, 255, 0.1);
+  font-weight: 700;
+}
+
 .demo-details {
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -632,8 +844,15 @@ textarea {
 
   .modal-header,
   .section-heading,
-  .modal-actions {
+  .modal-actions,
+  .app-nav,
+  .delivery-section,
+  .directory-project-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .management-actions {
+    grid-template-columns: 1fr;
   }
 }

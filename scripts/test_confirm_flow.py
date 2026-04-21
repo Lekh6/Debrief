@@ -1,10 +1,11 @@
 import json
+import os
 
 import requests
 
 
 PROJECT_ID = "168d62d7-e74a-49e7-b81d-a8b83be46ea2"
-BASE_URL = "http://127.0.0.1:8004/api/v1"
+BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:8005/api/v1")
 
 
 def main() -> None:

@@ -43,8 +43,15 @@ class TaskConfirmInput(BaseModel):
     confidence_reasons: dict[str, str] = Field(default_factory=dict)
 
 
+class DeliveryTargets(BaseModel):
+    jira: bool = True
+    google_calendar: bool = True
+    slack: bool = False
+
+
 class MeetingConfirmRequest(BaseModel):
     tasks: list[TaskConfirmInput]
+    delivery_targets: DeliveryTargets = Field(default_factory=DeliveryTargets)
 
 
 class DeliveryResult(BaseModel):
