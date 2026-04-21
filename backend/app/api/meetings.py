@@ -3,7 +3,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.entities import Employee, Meeting, Project, Task
 from app.schemas.meetings import ConfirmedTaskRead, ExtractionResponse, MeetingConfirmRequest, MeetingHistoryItem
@@ -78,7 +77,6 @@ async def confirm_meeting_tasks(
     jira_service = JiraService()
     google_calendar_service = GoogleCalendarService()
     slack_service = SlackService()
-    settings = get_settings()
     confirmed_tasks: list[Task] = []
 
     for item in payload.tasks:
@@ -109,7 +107,7 @@ async def confirm_meeting_tasks(
         db.add(new_task)
         db.flush()
 
-        if settings.auto_create_jira_on_confirm:
+        if payload.delivery_targets.jira:
             try:
                 jira_result = await jira_service.create_issue(
                     project_key=meeting.project.jira_project_key,
@@ -130,7 +128,7 @@ async def confirm_meeting_tasks(
                 new_task.jira_status = "failed"
                 new_task.jira_error = str(exc)
 
-        if settings.auto_create_google_calendar_on_confirm:
+        if payload.delivery_targets.google_calendar:
             try:
                 calendar_result = await google_calendar_service.create_event(
                     db=db,
@@ -148,7 +146,7 @@ async def confirm_meeting_tasks(
                 new_task.google_calendar_status = "failed"
                 new_task.google_calendar_error = str(exc)
 
-        if settings.auto_notify_slack_on_confirm:
+        if payload.delivery_targets.slack:
             try:
                 slack_result = await slack_service.send_task_dm(
                     slack_user_id=assignee.slack_user_id if assignee else None,
@@ -163,7 +161,10 @@ async def confirm_meeting_tasks(
 
     meeting.status = "confirmed"
     for task in confirmed_tasks:
-        if task.jira_status == "created" or task.google_calendar_status == "created":
+        if task.jira_status in {"created", "created_without_assignee"} or task.google_calendar_status in {
+            "created",
+            "created_without_attendee",
+        }:
             task.status = "pushed"
     meeting.status = "confirmed"
     db.commit()

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
 from app.models.entities import Employee, Project
-from app.schemas.projects import ProjectCreate, ProjectRead
+from app.schemas.projects import EmployeeCreate, EmployeeRead, ProjectCreate, ProjectRead
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -57,3 +57,24 @@ def get_project(project_id: str, db: Session = Depends(get_db)) -> Project:
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
     return project
+
+
+@router.post("/{project_id}/employees", response_model=EmployeeRead, status_code=status.HTTP_201_CREATED)
+def create_project_employee(project_id: str, payload: EmployeeCreate, db: Session = Depends(get_db)) -> Employee:
+    project = db.query(Project).filter(Project.project_id == project_id).one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    employee = Employee(
+        name=payload.name,
+        team=payload.team,
+        jira_account_id=payload.jira_account_id,
+        jira_email=payload.jira_email,
+        calendar_email=payload.calendar_email,
+        slack_user_id=payload.slack_user_id,
+        project_id=project.project_id,
+    )
+    db.add(employee)
+    db.commit()
+    db.refresh(employee)
+    return employee

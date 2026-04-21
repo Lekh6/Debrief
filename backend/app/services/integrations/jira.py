@@ -61,21 +61,41 @@ class JiraService:
             payload["fields"]["duedate"] = due_date
 
         endpoint = f"{self.settings.jira_base_url.rstrip('/')}/rest/api/3/issue"
+        response = await self._post_issue(endpoint, payload)
+        if isinstance(response, JiraCreateResult):
+            return response
+
+        if response.is_success:
+            data = response.json()
+            return JiraCreateResult(issue_id=data.get("key"), status="created")
+
+        if "assignee" in response.text and payload["fields"].pop("assignee", None):
+            retry_response = await self._post_issue(endpoint, payload)
+            if isinstance(retry_response, JiraCreateResult):
+                return retry_response
+            if retry_response.is_success:
+                data = retry_response.json()
+                return JiraCreateResult(
+                    issue_id=data.get("key"),
+                    status="created_without_assignee",
+                    error=(
+                        "Jira created the issue, but skipped assignment because Jira rejected "
+                        f"the configured assignee for {assignee_name or assignee_email or 'this task'}."
+                    ),
+                )
+
+        return JiraCreateResult(issue_id=None, status="failed", error=response.text)
+
+    async def _post_issue(self, endpoint: str, payload: dict) -> httpx.Response | JiraCreateResult:
         try:
             async with httpx.AsyncClient(timeout=30, auth=(self.settings.jira_user_email, self.settings.jira_api_token)) as client:
-                response = await client.post(
+                return await client.post(
                     endpoint,
                     headers={"Accept": "application/json", "Content-Type": "application/json"},
                     json=payload,
                 )
         except Exception as exc:
             return JiraCreateResult(issue_id=None, status="failed", error=str(exc))
-
-        if response.is_success:
-            data = response.json()
-            return JiraCreateResult(issue_id=data.get("key"), status="created")
-
-        return JiraCreateResult(issue_id=None, status="failed", error=response.text)
 
     async def _lookup_account_id_by_email(self, assignee_email: str | None) -> str | None:
         if not assignee_email:
