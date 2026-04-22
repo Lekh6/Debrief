@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     jira_user_email: str | None = None
     jira_api_token: str | None = None
 
+    slack_bot_token: str | None = None
+
     google_calendar_id: str | None = None
     google_service_account_json: str | None = None
     google_oauth_client_id: str | None = None

@@ -37,9 +37,9 @@ DEMO_PROJECTS = [
         "jira_project_key": "KAN",
         "slack_channel_id": "C-DEMO-DATA",
         "employees": [
-            {"name": "Eva Stone", "team": "Data Engineering", "jira_account_id": "712020:55725d14-7f90-4dec-bf73-c9dbf05d0ccc", "jira_email": "lekharuthwik262+t1@gmail.com", "calendar_email": "lekharuthwik262+t1@gmail.com", "slack_user_id": "UEVA0001"},
-            {"name": "Rahul Mehta", "team": "Platform", "jira_account_id": "712020:692dd27a-7b8c-4567-9ec0-803231610f15", "jira_email": "lekharuthwik@gmail.com", "calendar_email": "lekharuthwik@gmail.com", "slack_user_id": "URAHUL01"},
-            {"name": "Clara Zhou", "team": "Analytics", "jira_account_id": "712020:31e03e2b-3f25-4d80-8b5b-d4bbb792f813", "jira_email": "lekharuthwik265@gmail.com", "calendar_email": "lekharuthwik265@gmail.com", "slack_user_id": "UCLARA01"},
+            {"name": "Eva Stone", "team": "Data Engineering", "jira_account_id": "712020:55725d14-7f90-4dec-bf73-c9dbf05d0ccc", "jira_email": "lekharuthwik262+t1@gmail.com", "calendar_email": "lekharuthwik262+t1@gmail.com", "slack_user_id": "U0AQW0NCQAW"},
+            {"name": "Rahul Mehta", "team": "Platform", "jira_account_id": "712020:692dd27a-7b8c-4567-9ec0-803231610f15", "jira_email": "lekharuthwik@gmail.com", "calendar_email": "lekharuthwik@gmail.com", "slack_user_id": "U0AUH5N144W"},
+            {"name": "Clara Zhou", "team": "Analytics", "jira_account_id": "712020:31e03e2b-3f25-4d80-8b5b-d4bbb792f813", "jira_email": "lekharuthwik265@gmail.com", "calendar_email": "lekharuthwik265@gmail.com", "slack_user_id": "U0AUFQRDA5B"},
         ],
     },
 ]

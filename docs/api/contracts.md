@@ -10,7 +10,6 @@ Example request:
 {
   "name": "Website Redesign",
   "jira_project_key": "WR",
-  "slack_channel_id": "C123456",
   "employees": [
     {
       "name": "John Carter",

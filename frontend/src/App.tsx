@@ -43,7 +43,7 @@ const fallbackProjects: Project[] = [
 const defaultDeliveryTargets: DeliveryTargets = {
   google_calendar: true,
   jira: true,
-  slack: false,
+  slack: true,
 };
 
 function blankConfidence() {
@@ -137,7 +137,7 @@ function TeamManagementPage({
   onRefresh: () => Promise<void>;
   onError: (message: string) => void;
 }) {
-  const [newProject, setNewProject] = useState({ name: "", jira_project_key: "", slack_channel_id: "" });
+  const [newProject, setNewProject] = useState({ name: "", jira_project_key: "" });
   const [newMember, setNewMember] = useState({
     project_id: "",
     name: "",
@@ -164,7 +164,7 @@ function TeamManagementPage({
     event.preventDefault();
     try {
       await createProject(newProject);
-      setNewProject({ name: "", jira_project_key: "", slack_channel_id: "" });
+      setNewProject({ name: "", jira_project_key: "" });
       await onRefresh();
     } catch (requestError) {
       onError(requestError instanceof Error ? requestError.message : "Failed to create project");
@@ -210,13 +210,6 @@ function TeamManagementPage({
             <input
               value={newProject.jira_project_key}
               onChange={(event) => setNewProject({ ...newProject, jira_project_key: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>Slack channel ID</span>
-            <input
-              value={newProject.slack_channel_id}
-              onChange={(event) => setNewProject({ ...newProject, slack_channel_id: event.target.value })}
             />
           </label>
           <button className="primary-button" disabled={busy} type="submit">
@@ -282,8 +275,7 @@ function TeamManagementPage({
               <div>
                 <h3>{project.name}</h3>
                 <p>
-                  Jira: <strong>{project.jira_project_key || "Not set"}</strong> | Slack channel:{" "}
-                  <strong>{project.slack_channel_id || "Not set"}</strong>
+                  Jira: <strong>{project.jira_project_key || "Not set"}</strong>
                 </p>
               </div>
               <span>{project.employees.length} members</span>
@@ -400,9 +392,15 @@ export default function App() {
       ).length;
       const calendarNeedsReconnect = confirmed.filter((task: any) => task.google_calendar_status === "needs_reconnect").length;
       const slackDelivered = confirmed.filter((task: any) => task.slack_delivery_status === "delivered").length;
+      const slackIssues = confirmed.filter(
+        (task: any) =>
+          task.slack_delivery_status &&
+          task.slack_delivery_status !== "delivered" &&
+          task.slack_delivery_status !== "not_sent",
+      );
       const jiraFailed = confirmed.filter((task: any) => task.jira_status === "failed").length;
       const calendarFailed = confirmed.filter((task: any) => task.google_calendar_status === "failed").length;
-      const slackFailed = confirmed.filter((task: any) => task.slack_delivery_status === "failed").length;
+      const slackFailed = slackIssues.length;
       const calendarErrorSample =
         confirmed.find((task: any) => task.google_calendar_status === "failed" && task.google_calendar_error)
           ?.google_calendar_error ??
@@ -428,7 +426,9 @@ export default function App() {
           jiraFailed ? `${jiraFailed} Jira push${jiraFailed > 1 ? "es" : ""} failed.` : "",
           calendarFailed ? `${calendarFailed} calendar push${calendarFailed > 1 ? "es" : ""} failed.` : "",
           calendarNeedsReconnect ? "Google Calendar needs to be reconnected for this project." : "",
-          slackFailed ? `${slackFailed} Slack push${slackFailed > 1 ? "es" : ""} failed.` : "",
+          slackFailed
+            ? `${slackFailed} Slack update${slackFailed > 1 ? "s need" : " needs"} attention (${slackIssues[0].slack_delivery_status}).`
+            : "",
           jiraErrorSample ? `Jira: ${jiraErrorSample}` : "",
           calendarErrorSample ? `Calendar: ${calendarErrorSample}` : "",
         ].filter(Boolean),

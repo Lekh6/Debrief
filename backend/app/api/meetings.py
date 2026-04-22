@@ -78,6 +78,7 @@ async def confirm_meeting_tasks(
     google_calendar_service = GoogleCalendarService()
     slack_service = SlackService()
     confirmed_tasks: list[Task] = []
+    slack_delivery_queue: list[tuple[Task, Employee | None]] = []
 
     for item in payload.tasks:
         assignee = None
@@ -147,17 +148,22 @@ async def confirm_meeting_tasks(
                 new_task.google_calendar_error = str(exc)
 
         if payload.delivery_targets.slack:
+            slack_delivery_queue.append((new_task, assignee))
+
+        confirmed_tasks.append(new_task)
+
+    if payload.delivery_targets.slack and slack_delivery_queue:
+        for task, assignee in slack_delivery_queue:
             try:
                 slack_result = await slack_service.send_task_dm(
                     slack_user_id=assignee.slack_user_id if assignee else None,
-                    title=item.title,
-                    jira_link=new_task.jira_issue_id,
+                    title=task.title,
+                    deadline=task.deadline,
+                    meeting_transcript=meeting.meeting_transcript,
                 )
-                new_task.slack_delivery_status = slack_result.status
+                task.slack_delivery_status = slack_result.status
             except Exception:
-                new_task.slack_delivery_status = "failed"
-
-        confirmed_tasks.append(new_task)
+                task.slack_delivery_status = "failed"
 
     meeting.status = "confirmed"
     for task in confirmed_tasks:
