@@ -19,9 +19,12 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
     sql_echo: bool = False
 
-    whisper_base_url: str | None = None
-    whisper_api_key: str | None = None
-    whisper_model: str = "whisper-1"
+    faster_whisper_model: str = "small"
+    faster_whisper_device: str = "auto"
+    faster_whisper_compute_type: str = "int8"
+    faster_whisper_language: str | None = None
+    faster_whisper_beam_size: int = 5
+    faster_whisper_vad_filter: bool = True
 
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
     gemini_api_key: str | None = None

@@ -748,6 +748,27 @@ textarea {
   color: var(--muted);
 }
 
+.recorder-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(9, 18, 35, 0.66);
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.recorder-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.recording-error {
+  margin: 0;
+  color: var(--danger);
+}
+
 .oauth-link {
   width: fit-content;
   color: #8bc2ff;

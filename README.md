@@ -1,65 +1,113 @@
-# Post-Meeting Task Automation Tool
+# Debrief - Post-Meeting Task Automation
 
-Greenfield scaffold for the post-meeting task automation workflow described in the project spec. The repository is organized to get Phase 1 moving quickly while leaving clean seams for Jira, Slack, OAuth, and richer transcription providers.
+Debrief turns meeting transcripts into reviewable tasks, then pushes confirmed tasks to Jira, Google Calendar, and Slack.
 
-## Workspace layout
+## Current project state
 
-- `backend/` FastAPI application, extraction pipeline, SQLAlchemy models, and integration stubs
-- `frontend/` React + TypeScript confirmation UI
-- `docs/` short architecture and API notes
+- Backend: FastAPI + SQLAlchemy (`backend/`)
+- Frontend: React + TypeScript + Vite (`frontend/`)
+- Local transcription: `faster-whisper` (audio -> transcript)
+- Integrations wired in confirm flow:
+  - Jira issue creation
+  - Google Calendar event creation
+  - Slack DM delivery to assignees
+- Extraction supports Gemini and a heuristic fallback
 
-## What is implemented
+## Easiest way to run (Windows demo mode)
 
-- Project, employee, meeting, and task data models
-- Extraction endpoint that accepts transcripts now and audio uploads when Whisper is configured
-- Gemini extraction path with JSON-structured responses and heuristic fallback for local development
-- Confidence-aware task extraction response shape
-- Meeting confirmation endpoint and meeting history endpoint
-- Lightweight React UI for upload, review, inline edit, employee-based assignee correction, and confirm
-- Google Calendar integration is about 90% working:
-  event creation and deadline pushes work, OAuth2 flow is scaffolded, and the main remaining blocker is Google OAuth test-user / verification setup
-- Slack delivery for confirmed meetings:
-  DMs each assignee their task, deadline, and the meeting transcript
-- Integration seams for Jira and Slack so Phase 3 and Phase 4 can slot in without a rewrite
+From the repo root:
 
-## Current assumptions
+```powershell
+.\scripts\start_demo.ps1
+```
 
-- We are prioritizing Phase 1 and early Phase 2 over production auth/integration work
-- Audio upload is supported at the API boundary, but real transcription requires a configured Whisper endpoint
-- If Gemini is not configured, the backend falls back to a deterministic heuristic extractor so development can continue locally
+This starts backend and frontend in separate PowerShell windows.
 
-## Backend quick start
+- Backend URL: `http://127.0.0.1:8005`
+- Frontend URL: `http://localhost:5173`
+- Demo login: `leka` / `le124`
 
-```bash
-cd backend
+## Manual run (recommended for development)
+
+### 1) Backend setup
+
+```powershell
 python -m venv .venv
-.venv\Scripts\activate
-pip install -e .
-uvicorn app.main:app --reload
+.\.venv\Scripts\activate
+pip install -e .\backend
 ```
 
-Seed a demo project after the API is running:
+### 2) Backend run
 
-```bash
-cd backend
-python -m app.seed_demo
+```powershell
+cd .\backend
+..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8005
 ```
 
-The seed now creates 4 independent demo projects with 11 employees total so you can prove project-ID scoping in the UI and integration flow.
+### 3) Frontend setup + run
 
-## Frontend quick start
+In a second terminal:
 
-```bash
-cd frontend
+```powershell
+cd .\frontend
 npm install
 npm run dev
 ```
 
-## Next milestones
+The frontend uses `frontend/.env` and points to `http://127.0.0.1:8005/api/v1` by default.
 
-1. Validate extraction quality against real meeting transcripts.
-2. Add Jira OAuth and issue creation.
-3. Add Slack OAuth and richer channel setup.
-4. Finish Google OAuth testing setup so attendee invites send through the connected host account.
-5. Build the meeting history page with live Jira status pulls.
-6. Move from `create_all()` bootstrapping to migrations.
+## Environment config
+
+- Backend reads settings from `backend/.env`
+- Use `backend/.env.example` as reference
+- Faster-whisper is local and configured by:
+  - `FASTER_WHISPER_MODEL` (for example `small`, `medium`, `large-v3`)
+  - `FASTER_WHISPER_DEVICE` (`auto`, `cpu`, `cuda`)
+  - `FASTER_WHISPER_COMPUTE_TYPE` (`int8`, `int8_float16`, `float16`, `float32`)
+  - `FASTER_WHISPER_LANGUAGE` (leave empty for auto-detect, or set `en`)
+  - `FASTER_WHISPER_BEAM_SIZE`
+  - `FASTER_WHISPER_VAD_FILTER`
+- Key integration toggles:
+  - `AUTO_CREATE_JIRA_ON_CONFIRM`
+  - `AUTO_CREATE_GOOGLE_CALENDAR_ON_CONFIRM`
+  - `AUTO_NOTIFY_SLACK_ON_CONFIRM`
+
+Note: the frontend confirm modal also sends explicit delivery targets, so those UI choices take priority per request.
+
+## Seed demo data (optional)
+
+After backend is running:
+
+```powershell
+cd .\backend
+..\.venv\Scripts\python -m app.seed_demo
+```
+
+## Project layout
+
+- `backend/` API routes, extraction pipeline, integrations, DB models
+- `frontend/` host review UI + team management
+- `scripts/` diagnostics and smoke scripts
+- `docs/` architecture and API notes
+
+## Troubleshooting
+
+- Install system dependency for audio decoding:
+
+```powershell
+winget install Gyan.FFmpeg
+```
+
+- If backend fails with Google auth import errors, install missing dependencies in the venv:
+
+```powershell
+.\.venv\Scripts\python -m pip install requests
+```
+
+- On first transcription run, faster-whisper downloads model files locally, so the first request can be slower.
+
+- If extraction fails due to model/provider availability, switch to heuristic mode in `backend/.env`:
+
+```env
+USE_HEURISTIC_EXTRACTOR=true
+```

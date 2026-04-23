@@ -9,8 +9,10 @@ description = "Backend for post-meeting task extraction and delivery."
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115.0,<1.0.0",
+  "faster-whisper>=1.1.1,<2.0.0",
   "google-auth>=2.38.0,<3.0.0",
   "httpx>=0.28.0,<1.0.0",
+  "requests>=2.33.0,<3.0.0",
   "pydantic-settings>=2.7.0,<3.0.0",
   "python-multipart>=0.0.9,<1.0.0",
   "sqlalchemy>=2.0.36,<3.0.0",
