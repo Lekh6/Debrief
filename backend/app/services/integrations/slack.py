@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
@@ -14,6 +15,14 @@ class SlackDeliveryResult:
     error: str | None = None
     channel_id: str | None = None
     message_ts: str | None = None
+    intended_mode: str | None = None
+    intended_recipient: str | None = None
+    conversations_open_channel_id: str | None = None
+    final_channel_id: str | None = None
+    slack_response: dict[str, Any] | None = None
+
+
+logger = logging.getLogger(__name__)
 
 
 class SlackService:
@@ -37,12 +46,16 @@ class SlackService:
             return SlackDeliveryResult(
                 status="missing_recipient",
                 error="Assignee is missing a Slack user ID.",
+                intended_mode="dm",
+                intended_recipient=slack_user_id,
             )
         task_transcript = description.strip()
         if not task_transcript:
             return SlackDeliveryResult(
                 status="missing_task",
                 error="Task details are required before sending task DMs.",
+                intended_mode="dm",
+                intended_recipient=normalized_user_id,
             )
 
         open_result = await self._call_slack_api("conversations.open", {"users": normalized_user_id})
@@ -50,12 +63,32 @@ class SlackService:
             return open_result
 
         dm_channel_id = (open_result.get("channel") or {}).get("id")
+        logger.info(
+            "slack_dm_route",
+            extra={
+                "intended_mode": "dm",
+                "target_slack_user_id": normalized_user_id,
+                "conversations_open_result": open_result,
+                "conversations_open_channel_id": dm_channel_id,
+            },
+        )
         if not dm_channel_id:
-            return SlackDeliveryResult(status="failed", error="Slack did not return a DM channel ID.")
+            return SlackDeliveryResult(
+                status="failed",
+                error="Slack did not return a DM channel ID.",
+                intended_mode="dm",
+                intended_recipient=normalized_user_id,
+                conversations_open_channel_id=dm_channel_id,
+                slack_response=open_result,
+            )
         if not dm_channel_id.startswith("D"):
             return SlackDeliveryResult(
                 status="failed",
                 error=f"Slack returned a non-DM channel ({dm_channel_id}) for recipient.",
+                intended_mode="dm",
+                intended_recipient=normalized_user_id,
+                conversations_open_channel_id=dm_channel_id,
+                slack_response=open_result,
             )
 
         message = self._build_task_dm_message(meeting_topic, title, description, deadline)
@@ -72,10 +105,27 @@ class SlackService:
         if isinstance(post_result, SlackDeliveryResult):
             return post_result
 
+        final_channel_id = post_result.get("channel") or dm_channel_id
+        logger.info(
+            "slack_dm_post",
+            extra={
+                "intended_mode": "dm",
+                "target_slack_user_id": normalized_user_id,
+                "conversations_open_channel_id": dm_channel_id,
+                "final_channel_id": final_channel_id,
+                "chat_post_message_result": post_result,
+            },
+        )
+
         return SlackDeliveryResult(
             status="delivered",
-            channel_id=post_result.get("channel") or dm_channel_id,
+            channel_id=final_channel_id,
             message_ts=post_result.get("ts"),
+            intended_mode="dm",
+            intended_recipient=normalized_user_id,
+            conversations_open_channel_id=dm_channel_id,
+            final_channel_id=final_channel_id,
+            slack_response=post_result,
         )
 
     async def publish_transcript(
@@ -95,11 +145,13 @@ class SlackService:
             return SlackDeliveryResult(
                 status="missing_channel",
                 error="Project is missing a Slack channel ID.",
+                intended_mode="channel",
             )
         if not meeting_transcript.strip():
             return SlackDeliveryResult(
                 status="missing_transcript",
                 error="Meeting transcript is required before publishing to Slack.",
+                intended_mode="channel",
             )
 
         message = self._build_transcript_message(
@@ -122,10 +174,24 @@ class SlackService:
         if isinstance(post_result, SlackDeliveryResult):
             return post_result
 
+        final_channel_id = post_result.get("channel") or normalized_channel_id
+        logger.info(
+            "slack_channel_post",
+            extra={
+                "intended_mode": "channel",
+                "target_channel_id": normalized_channel_id,
+                "final_channel_id": final_channel_id,
+                "chat_post_message_result": post_result,
+            },
+        )
+
         return SlackDeliveryResult(
             status="delivered",
-            channel_id=post_result.get("channel") or normalized_channel_id,
+            channel_id=final_channel_id,
             message_ts=post_result.get("ts"),
+            intended_mode="channel",
+            final_channel_id=final_channel_id,
+            slack_response=post_result,
         )
 
     def _validate_ready(self) -> SlackDeliveryResult | None:
@@ -229,7 +295,7 @@ class SlackService:
                     data = response.json()
                     if data.get("ok"):
                         return data
-                    return SlackDeliveryResult(status="failed", error=str(data.get("error") or data))
+                    return SlackDeliveryResult(status="failed", error=str(data.get("error") or data), slack_response=data)
         except Exception as exc:
             return SlackDeliveryResult(status="failed", error=str(exc))
 

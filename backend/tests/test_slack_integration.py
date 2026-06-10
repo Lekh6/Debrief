@@ -107,3 +107,88 @@ def test_slack_user_id_normalization_accepts_mentions():
 
     assert service._normalize_user_id("<@U123|Rahul>") == "U123"
     assert service._normalize_user_id("@U456") == "U456"
+
+
+class _RoutingProbeSlackService(SlackService):
+    def __init__(self, responses):
+        super().__init__(bot_token="xoxb-test")
+        self.responses = responses
+        self.calls = []
+
+    async def _call_slack_api(self, method, payload, http_method="POST"):
+        self.calls.append((method, payload))
+        value = self.responses.get(method)
+        if callable(value):
+            return value(payload)
+        return value
+
+
+def test_dm_uses_conversations_open_then_posts_to_d_channel():
+    service = _RoutingProbeSlackService(
+        responses={
+            "conversations.open": {"ok": True, "channel": {"id": "D123"}},
+            "chat.postMessage": {"ok": True, "channel": "D123", "ts": "1.2"},
+        }
+    )
+
+    result = asyncio.run(
+        service.send_task_dm(
+            slack_user_id="U123",
+            meeting_topic="Data Platform Upgrade",
+            title="Send launch plan",
+            description="Task transcript",
+            deadline=None,
+        )
+    )
+
+    assert result.status == "delivered"
+    assert result.conversations_open_channel_id == "D123"
+    assert result.final_channel_id == "D123"
+    assert service.calls[0][0] == "conversations.open"
+    assert service.calls[1][0] == "chat.postMessage"
+    assert service.calls[1][1]["channel"] == "D123"
+
+
+def test_channel_publish_posts_to_project_channel_id():
+    service = _RoutingProbeSlackService(
+        responses={
+            "chat.postMessage": {"ok": True, "channel": "C999", "ts": "2.3"},
+        }
+    )
+
+    result = asyncio.run(
+        service.publish_transcript(
+            channel_id="C999",
+            meeting_topic="Data Platform Upgrade",
+            meeting_transcript="Line one. Line two.",
+            meeting_date=datetime(2026, 6, 10, 9, 30, 0),
+            member_names=["Rahul Mehta"],
+        )
+    )
+
+    assert result.status == "delivered"
+    assert result.final_channel_id == "C999"
+    assert service.calls[0][0] == "chat.postMessage"
+    assert service.calls[0][1]["channel"] == "C999"
+
+
+def test_dm_fails_when_conversations_open_returns_non_dm_channel():
+    service = _RoutingProbeSlackService(
+        responses={
+            "conversations.open": {"ok": True, "channel": {"id": "C123"}},
+        }
+    )
+
+    result = asyncio.run(
+        service.send_task_dm(
+            slack_user_id="U123",
+            meeting_topic="Data Platform Upgrade",
+            title="Send launch plan",
+            description="Task transcript",
+            deadline=None,
+        )
+    )
+
+    assert result.status == "failed"
+    assert "non-DM channel" in (result.error or "")
+    assert len(service.calls) == 1

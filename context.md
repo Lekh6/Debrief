@@ -110,6 +110,17 @@ This file captures significant implementation and debugging changes so context c
 - Confirm response now always reports both channel and DM delivery outcomes when either path fails (e.g. `channel_failed;dm_delivered`).
   - File: `backend/app/api/meetings.py`
 
+#### 2026-06-10 - Slack DM end-to-end routing diagnostics and destination verification
+
+- Added deterministic Slack delivery diagnostics fields (`intended_mode`, recipient, conversations-open channel, final channel, raw response) to Slack delivery results.
+  - File: `backend/app/services/integrations/slack.py`
+- Added structured route logging around `conversations.open` and `chat.postMessage` for DM/channel sends.
+  - File: `backend/app/services/integrations/slack.py`
+- Added routing tests verifying DM path uses `conversations.open -> D* -> chat.postMessage(D*)` and channel path posts to `C*` channel IDs.
+  - File: `backend/tests/test_slack_integration.py`
+- Added executable diagnostic script that prints real DM and channel destination evidence for current workspace/project configuration.
+  - File: `scripts/slack_route_diagnostics.py`
+
 ### Integration Diagnostics (latest run)
 
 - Jira diagnostics currently return authentication/authorization failures (`401`, project permission errors).
