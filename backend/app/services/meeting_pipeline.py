@@ -24,8 +24,10 @@ class MeetingPipeline:
         meeting_audio: UploadFile | None,
         closing_audio: UploadFile | None,
     ) -> ExtractionResponse:
-        resolved_meeting_transcript = await self._resolve_transcript(meeting_transcript, meeting_audio)
-        resolved_closing_transcript = await self._resolve_transcript(closing_transcript, closing_audio)
+        resolved_meeting_transcript = await self._resolve_required_transcript(meeting_transcript, meeting_audio)
+        resolved_closing_transcript = await self._resolve_optional_transcript(closing_transcript, closing_audio)
+        if not resolved_closing_transcript:
+            resolved_closing_transcript = resolved_meeting_transcript
 
         meeting_summary, extracted_tasks, extraction_mode = await self.extraction_service.extract(
             ExtractionContext(
@@ -74,12 +76,21 @@ class MeetingPipeline:
             team_groups=self._build_team_groups(extracted_tasks, project.employees),
         )
 
-    async def _resolve_transcript(self, transcript: str | None, audio: UploadFile | None) -> str:
+    async def _resolve_required_transcript(self, transcript: str | None, audio: UploadFile | None) -> str:
         if transcript and transcript.strip():
             return transcript.strip()
 
         if audio is None:
-            raise ValueError("A transcript or an audio file is required for both meeting and closing inputs.")
+            raise ValueError("A meeting transcript or meeting audio file is required.")
+
+        result = await self.transcription_service.transcribe_upload(audio)
+        return result.transcript
+
+    async def _resolve_optional_transcript(self, transcript: str | None, audio: UploadFile | None) -> str:
+        if transcript and transcript.strip():
+            return transcript.strip()
+        if audio is None:
+            return ""
 
         result = await self.transcription_service.transcribe_upload(audio)
         return result.transcript

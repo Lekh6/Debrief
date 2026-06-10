@@ -41,12 +41,13 @@ class TaskConfirmInput(BaseModel):
     deadline: date | None = None
     confidence: TaskConfidence = Field(default_factory=TaskConfidence)
     confidence_reasons: dict[str, str] = Field(default_factory=dict)
+    delivery_targets: "DeliveryTargets | None" = None
 
 
 class DeliveryTargets(BaseModel):
     jira: bool = True
     google_calendar: bool = True
-    slack: bool = False
+    slack: bool = True
 
 
 class MeetingConfirmRequest(BaseModel):

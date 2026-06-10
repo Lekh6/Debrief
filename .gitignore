@@ -21,6 +21,7 @@ dist-demo-9/
 dist-demo-10/
 coverage/
 uploads/
+recordings/
 *.log
 *.db
 *.sqlite

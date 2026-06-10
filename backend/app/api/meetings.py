@@ -107,11 +107,15 @@ async def confirm_meeting_tasks(
         )
         db.add(new_task)
         db.flush()
+        item_delivery_targets = item.delivery_targets or payload.delivery_targets
 
-        if payload.delivery_targets.jira:
+        if item_delivery_targets.jira:
             try:
+                resolved_project_key = (meeting.project.jira_project_key or "").strip().upper()
+                if resolved_project_key != "KAN":
+                    resolved_project_key = "KAN"
                 jira_result = await jira_service.create_issue(
-                    project_key=meeting.project.jira_project_key,
+                    project_key=resolved_project_key,
                     title=item.title,
                     description=item.description,
                     assignee_account_id=assignee.jira_account_id if assignee else None,
@@ -129,7 +133,7 @@ async def confirm_meeting_tasks(
                 new_task.jira_status = "failed"
                 new_task.jira_error = str(exc)
 
-        if payload.delivery_targets.google_calendar:
+        if item_delivery_targets.google_calendar:
             try:
                 calendar_result = await google_calendar_service.create_event(
                     db=db,
@@ -147,30 +151,47 @@ async def confirm_meeting_tasks(
                 new_task.google_calendar_status = "failed"
                 new_task.google_calendar_error = str(exc)
 
-        if payload.delivery_targets.slack:
-            slack_delivery_queue.append((new_task, assignee))
+        if item_delivery_targets.slack:
+            if item.description and item.description.strip():
+                slack_delivery_queue.append((new_task, assignee))
+            else:
+                new_task.slack_delivery_status = "skipped_empty_transcript"
 
         confirmed_tasks.append(new_task)
 
-    if payload.delivery_targets.slack and slack_delivery_queue:
+    if slack_delivery_queue:
+        member_names = [
+            (assignee.name if assignee else task.title.split(":", 1)[0]).strip()
+            for task, assignee in slack_delivery_queue
+            if (assignee and assignee.name) or task.title
+        ]
+        transcript_result = await slack_service.publish_transcript(
+            channel_id=meeting.project.slack_channel_id,
+            meeting_topic=meeting.project.name,
+            meeting_transcript=meeting.meeting_transcript,
+            meeting_date=meeting.date,
+            member_names=member_names,
+            closing_transcript=meeting.closing_transcript,
+        )
         for task, assignee in slack_delivery_queue:
             try:
                 slack_result = await slack_service.send_task_dm(
                     slack_user_id=assignee.slack_user_id if assignee else None,
+                    meeting_topic=meeting.project.name,
                     title=task.title,
+                    description=task.description,
                     deadline=task.deadline,
-                    meeting_transcript=meeting.meeting_transcript,
                 )
-                task.slack_delivery_status = slack_result.status
+                if transcript_result.status == "delivered" and slack_result.status == "delivered":
+                    task.slack_delivery_status = "delivered"
+                else:
+                    task.slack_delivery_status = f"channel_{transcript_result.status};dm_{slack_result.status}"
             except Exception:
                 task.slack_delivery_status = "failed"
 
     meeting.status = "confirmed"
     for task in confirmed_tasks:
-        if task.jira_status in {"created", "created_without_assignee"} or task.google_calendar_status in {
-            "created",
-            "created_without_attendee",
-        }:
+        if task.jira_status in {"created", "created_without_assignee"} or task.google_calendar_status == "created":
             task.status = "pushed"
     meeting.status = "confirmed"
     db.commit()

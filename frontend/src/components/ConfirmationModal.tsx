@@ -12,7 +12,10 @@ interface ConfirmationModalProps {
   onDeliveryTargetChange: (updates: Partial<DeliveryTargets>) => void;
   onClose: () => void;
   onConfirm: () => Promise<void>;
+  cardReviewEnabled: boolean;
 }
+
+const deliveryLabels: Array<keyof DeliveryTargets> = ["slack", "google_calendar", "jira"];
 
 function fieldClass(level: string) {
   if (level === "medium") {
@@ -22,6 +25,68 @@ function fieldClass(level: string) {
     return "confidence-low";
   }
   return "";
+}
+
+function nextIsoDate(offset: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+function prettyDeliveryName(target: keyof DeliveryTargets) {
+  if (target === "google_calendar") {
+    return "GCal";
+  }
+  return target[0].toUpperCase() + target.slice(1);
+}
+
+function DateControl({ value, onChange }: { value: string | null; onChange: (value: string | null) => void }) {
+  return (
+    <div className="date-control">
+      <input
+        inputMode="numeric"
+        placeholder="YYYY-MM-DD"
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value || null)}
+      />
+      <div className="date-chip-row">
+        <button onClick={() => onChange(nextIsoDate(1))} type="button">
+          Tomorrow
+        </button>
+        <button onClick={() => onChange(nextIsoDate(7))} type="button">
+          +1 week
+        </button>
+        <button onClick={() => onChange(null)} type="button">
+          Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DeliverySwitches({
+  targets,
+  onChange,
+  compact = false,
+}: {
+  targets: DeliveryTargets;
+  onChange: (updates: Partial<DeliveryTargets>) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div className={compact ? "delivery-switches compact" : "delivery-switches"}>
+      {deliveryLabels.map((target) => (
+        <button
+          className={targets[target] ? "active" : ""}
+          key={target}
+          onClick={() => onChange({ [target]: !targets[target] })}
+          type="button"
+        >
+          {prettyDeliveryName(target)}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export function ConfirmationModal({
@@ -34,247 +99,197 @@ export function ConfirmationModal({
   onDeliveryTargetChange,
   onClose,
   onConfirm,
+  cardReviewEnabled,
 }: ConfirmationModalProps) {
-  const [expandedTeams, setExpandedTeams] = useState<Record<string, boolean>>({});
-  const [selectedMemberId, setSelectedMemberId] = useState<string>(rows[0]?.employee_id ?? "");
+  const [selectedTeam, setSelectedTeam] = useState("all");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(rows[0]?.employee_id ?? "");
 
-  const groupedRows = useMemo(() => {
-    return rows.reduce<Record<string, HostReviewRow[]>>((accumulator, row) => {
-      if (!accumulator[row.team]) {
-        accumulator[row.team] = [];
-      }
-      accumulator[row.team].push(row);
-      return accumulator;
-    }, {});
+  const teams = useMemo(() => {
+    return ["all", ...Array.from(new Set(rows.map((row) => row.team)))];
   }, [rows]);
+
+  const visibleRows = selectedTeam === "all" ? rows : rows.filter((row) => row.team === selectedTeam);
+  const activeRow =
+    visibleRows.find((row) => row.employee_id === selectedEmployeeId) ??
+    visibleRows[0] ??
+    null;
+
+  const activeRowIndex = activeRow ? rows.findIndex((entry) => entry.employee_id === activeRow.employee_id) : -1;
 
   if (!result) {
     return null;
   }
 
-  const teams = Object.keys(groupedRows);
-  const singleTeamMode = teams.length <= 1;
-  const selectedRow = rows.find((row) => row.employee_id === selectedMemberId) ?? rows[0] ?? null;
-
   return (
     <section className="confirmation-modal inline-confirmation">
-        <div className="modal-header">
-          <div>
-            <p className="eyebrow">Host Confirmation</p>
-            <h2>{result.project_name}</h2>
-            <p className="muted">
-              Project ID: <strong>{result.project_id}</strong>
-            </p>
-          </div>
-          <button className="secondary-button" onClick={onClose} type="button">
-            Close
-          </button>
+      <div className="modal-header">
+        <div>
+          <p className="eyebrow">Host confirmation</p>
+          <h2>{result.project_name}</h2>
+          <p className="muted">
+            {employees.length} members available, {rows.filter((row) => row.included).length} selected for delivery.
+          </p>
         </div>
+        <button className="secondary-button" onClick={onClose} type="button">
+          Clear review
+        </button>
+      </div>
 
-        <section className="summary-block">
+      <section className="summary-block">
+        <div className="section-heading">
           <h3>Meeting summary</h3>
-          <ul className="summary-list">
-            {result.meeting_summary.slice(0, 5).map((line, index) => (
-              <li key={`${line}-${index}`}>{line}</li>
+          <div className="team-filter">
+            {teams.map((team) => (
+              <button className={selectedTeam === team ? "active" : ""} key={team} onClick={() => setSelectedTeam(team)} type="button">
+                {team === "all" ? "All" : team}
+              </button>
             ))}
-          </ul>
-        </section>
-
-        {!singleTeamMode ? (
-          <section className="team-section">
-            <div className="section-heading">
-              <h3>Team tasks</h3>
-              <span>{teams.length} teams</span>
-            </div>
-
-            <div className="team-stack">
-              {teams.map((team) => {
-                const isExpanded = expandedTeams[team] ?? false;
-                const teamRows = groupedRows[team];
-                const teamTasks = teamRows.filter((row) => row.purpose.trim());
-
-                return (
-                  <article className="team-card" key={team}>
-                    <button
-                      className="team-toggle"
-                      onClick={() => setExpandedTeams((current) => ({ ...current, [team]: !isExpanded }))}
-                      type="button"
-                    >
-                      <div>
-                        <h4>{team}</h4>
-                        <p>{teamTasks.length ? `${teamTasks.length} active member tasks` : "No team tasks mentioned yet"}</p>
-                      </div>
-                      <span>{isExpanded ? "Hide members" : "Reveal members"}</span>
-                    </button>
-
-                    <div className="team-purpose-list">
-                      {teamTasks.length ? (
-                        teamTasks.map((row) => (
-                          <p key={row.employee_id}>
-                            <strong>{row.employee_name}:</strong> {row.purpose}
-                          </p>
-                        ))
-                      ) : (
-                        <p>No tasks were assigned explicitly to this team in the transcript.</p>
-                      )}
-                    </div>
-
-                    {isExpanded ? (
-                      <div className="member-form-grid">
-                        {teamRows.map((row) => {
-                          const rowIndex = rows.findIndex((entry) => entry.employee_id === row.employee_id);
-                          return (
-                            <div className="member-editor" key={row.employee_id}>
-                              <div className="member-heading">
-                                <label className="member-include">
-                                  <input
-                                    checked={row.included}
-                                    type="checkbox"
-                                    onChange={(event) => onRowChange(rowIndex, { included: event.target.checked })}
-                                  />
-                                  <strong>{row.employee_name}</strong>
-                                </label>
-                                <span>{row.team}</span>
-                              </div>
-
-                              <label className={fieldClass(row.confidence.description)}>
-                                <span>Task</span>
-                                <textarea
-                                  rows={4}
-                                  value={row.purpose}
-                                  onChange={(event) => onRowChange(rowIndex, { purpose: event.target.value })}
-                                  placeholder="Left empty if not mentioned in the meeting."
-                                />
-                              </label>
-
-                              <label className={fieldClass(row.confidence.deadline)}>
-                                <span>Deadline</span>
-                                <input
-                                  type="date"
-                                  value={row.deadline ?? ""}
-                                  onChange={(event) => onRowChange(rowIndex, { deadline: event.target.value || null })}
-                                />
-                              </label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ) : (
-          <section className="team-section">
-            <div className="section-heading">
-              <h3>Member tasks</h3>
-              <span>Single-team view</span>
-            </div>
-
-            <div className="single-team-panel">
-              <label>
-                <span>Member</span>
-                <select value={selectedRow?.employee_id ?? ""} onChange={(event) => setSelectedMemberId(event.target.value)}>
-                  {rows.map((row) => (
-                    <option key={row.employee_id} value={row.employee_id}>
-                      {row.employee_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {selectedRow ? (
-                <div className="member-editor single-member-editor">
-                  <div className="member-heading">
-                    <label className="member-include">
-                      <input
-                        checked={selectedRow.included}
-                        type="checkbox"
-                        onChange={(event) =>
-                          onRowChange(rows.findIndex((entry) => entry.employee_id === selectedRow.employee_id), {
-                            included: event.target.checked,
-                          })
-                        }
-                      />
-                      <strong>{selectedRow.employee_name}</strong>
-                    </label>
-                    <span>{selectedRow.team}</span>
-                  </div>
-
-                  <label className={fieldClass(selectedRow.confidence.description)}>
-                    <span>Task</span>
-                    <textarea
-                      rows={5}
-                      value={selectedRow.purpose}
-                      onChange={(event) =>
-                        onRowChange(rows.findIndex((entry) => entry.employee_id === selectedRow.employee_id), {
-                          purpose: event.target.value,
-                        })
-                      }
-                      placeholder="Left empty if not mentioned in the meeting."
-                    />
-                  </label>
-
-                  <label className={fieldClass(selectedRow.confidence.deadline)}>
-                    <span>Deadline</span>
-                    <input
-                      type="date"
-                      value={selectedRow.deadline ?? ""}
-                      onChange={(event) =>
-                        onRowChange(rows.findIndex((entry) => entry.employee_id === selectedRow.employee_id), {
-                          deadline: event.target.value || null,
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-              ) : null}
-            </div>
-          </section>
-        )}
-
-        <section className="delivery-section">
-          <div>
-            <h3>Push destinations</h3>
-            <p className="muted">Select which platforms to update on:</p>
           </div>
-          <div className="delivery-options">
-            <label>
-              <input
-                checked={deliveryTargets.google_calendar}
-                type="checkbox"
-                onChange={(event) => onDeliveryTargetChange({ google_calendar: event.target.checked })}
-              />
-              Google Calendar
-            </label>
-            <label>
-              <input
-                checked={deliveryTargets.jira}
-                type="checkbox"
-                onChange={(event) => onDeliveryTargetChange({ jira: event.target.checked })}
-              />
-              Jira
-            </label>
-            <label>
-              <input
-                checked={deliveryTargets.slack}
-                type="checkbox"
-                onChange={(event) => onDeliveryTargetChange({ slack: event.target.checked })}
-              />
-              Slack
-            </label>
-          </div>
-        </section>
-
-        <div className="modal-actions">
-          <button className="secondary-button" onClick={onClose} type="button">
-            Clear review
-          </button>
-          <button className="primary-button" disabled={busy} onClick={() => void onConfirm()} type="button">
-            {busy ? "Preparing push..." : "Confirm selected updates"}
-          </button>
+        </div>
+        <div className="summary-row">
+          {result.meeting_summary.slice(0, 5).map((line, index) => (
+            <p key={`${line}-${index}`}>{line}</p>
+          ))}
         </div>
       </section>
+
+      {cardReviewEnabled ? (
+        <section className="member-card-layout">
+          <aside className="member-card-rail">
+            {visibleRows.map((row) => (
+              <button
+                className={[
+                  "member-select-card",
+                  selectedEmployeeId === row.employee_id ? "active" : "",
+                  row.included ? "included" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                key={row.employee_id}
+                onClick={() => setSelectedEmployeeId(row.employee_id)}
+                type="button"
+              >
+                <strong>{row.employee_name}</strong>
+                <span>{row.team}</span>
+              </button>
+            ))}
+          </aside>
+
+          <div className={activeRow ? "member-detail-slide active" : "member-detail-slide"}>
+            {activeRow && activeRowIndex >= 0 ? (
+              <article className={activeRow.included ? "member-editor included" : "member-editor"}>
+                <div className="member-heading">
+                  <label className="member-include">
+                    <input
+                      checked={activeRow.included}
+                      type="checkbox"
+                      onChange={(event) => onRowChange(activeRowIndex, { included: event.target.checked })}
+                    />
+                    <strong>{activeRow.employee_name}</strong>
+                  </label>
+                  <span>{activeRow.team}</span>
+                </div>
+
+                <label className={fieldClass(activeRow.confidence.description)}>
+                  <span>Task transcript</span>
+                  <textarea
+                    rows={5}
+                    value={activeRow.purpose}
+                    onChange={(event) => onRowChange(activeRowIndex, { purpose: event.target.value })}
+                    placeholder="Left empty if not mentioned in the meeting."
+                  />
+                </label>
+
+                <label className={fieldClass(activeRow.confidence.deadline)}>
+                  <span>Due date</span>
+                  <DateControl value={activeRow.deadline} onChange={(deadline) => onRowChange(activeRowIndex, { deadline })} />
+                </label>
+
+                <div>
+                  <span className="control-label">Platforms</span>
+                  <DeliverySwitches
+                    compact
+                    targets={activeRow.delivery_targets}
+                    onChange={(updates) =>
+                      onRowChange(activeRowIndex, {
+                        delivery_targets: { ...activeRow.delivery_targets, ...updates },
+                      })
+                    }
+                  />
+                </div>
+              </article>
+            ) : (
+              <p className="muted">No members in this team.</p>
+            )}
+          </div>
+        </section>
+      ) : (
+        <section className="member-review-grid">
+          {visibleRows.map((row) => {
+            const rowIndex = rows.findIndex((entry) => entry.employee_id === row.employee_id);
+            return (
+              <article className={row.included ? "member-editor included" : "member-editor"} key={row.employee_id}>
+                <div className="member-heading">
+                  <label className="member-include">
+                    <input
+                      checked={row.included}
+                      type="checkbox"
+                      onChange={(event) => onRowChange(rowIndex, { included: event.target.checked })}
+                    />
+                    <strong>{row.employee_name}</strong>
+                  </label>
+                  <span>{row.team}</span>
+                </div>
+
+                <label className={fieldClass(row.confidence.description)}>
+                  <span>Task transcript</span>
+                  <textarea
+                    rows={4}
+                    value={row.purpose}
+                    onChange={(event) => onRowChange(rowIndex, { purpose: event.target.value })}
+                    placeholder="Left empty if not mentioned in the meeting."
+                  />
+                </label>
+
+                <label className={fieldClass(row.confidence.deadline)}>
+                  <span>Due date</span>
+                  <DateControl value={row.deadline} onChange={(deadline) => onRowChange(rowIndex, { deadline })} />
+                </label>
+
+                <div>
+                  <span className="control-label">Platforms</span>
+                  <DeliverySwitches
+                    compact
+                    targets={row.delivery_targets}
+                    onChange={(updates) =>
+                      onRowChange(rowIndex, {
+                        delivery_targets: { ...row.delivery_targets, ...updates },
+                      })
+                    }
+                  />
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      )}
+
+      <section className="delivery-section">
+        <div>
+          <h3>Global delivery override</h3>
+          <p className="muted">Toggle a platform here to apply that choice to every selected member.</p>
+        </div>
+        <DeliverySwitches targets={deliveryTargets} onChange={onDeliveryTargetChange} />
+      </section>
+
+      <div className="modal-actions">
+        <button className="secondary-button" onClick={onClose} type="button">
+          Clear review
+        </button>
+        <button className="primary-button" disabled={busy} onClick={() => void onConfirm()} type="button">
+          {busy ? "Preparing push..." : "Confirm selected updates"}
+        </button>
+      </div>
+    </section>
   );
 }

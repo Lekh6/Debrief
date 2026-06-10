@@ -19,7 +19,6 @@ export function UploadPanel({ projects, onSubmit, busy }: UploadPanelProps) {
   const [transcript, setTranscript] = useState("");
   const [meetingAudio, setMeetingAudio] = useState<File | null>(null);
   const [closingAudio, setClosingAudio] = useState<File | null>(null);
-  const [recordingMode, setRecordingMode] = useState<"meeting" | "closing">("meeting");
   const [recording, setRecording] = useState(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -69,14 +68,10 @@ export function UploadPanel({ projects, onSubmit, busy }: UploadPanelProps) {
       recorder.onstop = () => {
         const audioBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
         const extension = recorder.mimeType.includes("wav") ? "wav" : "webm";
-        const targetFile = new File([audioBlob], `${recordingMode}-recording.${extension}`, {
+        const targetFile = new File([audioBlob], `meeting-recording.${extension}`, {
           type: audioBlob.type || "audio/webm",
         });
-        if (recordingMode === "meeting") {
-          setMeetingAudio(targetFile);
-        } else {
-          setClosingAudio(targetFile);
-        }
+        setMeetingAudio(targetFile);
         releaseRecorderResources();
       };
 
@@ -102,7 +97,7 @@ export function UploadPanel({ projects, onSubmit, busy }: UploadPanelProps) {
     await onSubmit({
       projectId,
       meetingTranscript: transcript || undefined,
-      closingTranscript: transcript || undefined,
+      closingTranscript: undefined,
       meetingAudio,
       closingAudio,
     });
@@ -149,29 +144,18 @@ export function UploadPanel({ projects, onSubmit, busy }: UploadPanelProps) {
         </label>
 
         <section className="recorder-panel">
-          <div className="recorder-controls">
-            <label>
-              <span>Record target</span>
-              <select
-                disabled={recording}
-                value={recordingMode}
-                onChange={(event) => setRecordingMode(event.target.value as "meeting" | "closing")}
-              >
-                <option value="meeting">Meeting recording</option>
-                <option value="closing">Closing statement</option>
-              </select>
-            </label>
+          <div className="recorder-controls single-action">
             {!recording ? (
-              <button className="secondary-button" disabled={!canUseMic || busy} onClick={() => void handleStartRecording()} type="button">
-                Start mic recording
+              <button className="mic-button" disabled={!canUseMic || busy} onClick={() => void handleStartRecording()} type="button">
+                Start meeting mic
               </button>
             ) : (
-              <button className="secondary-button" onClick={handleStopRecording} type="button">
-                Stop recording
+              <button className="mic-button recording" onClick={handleStopRecording} type="button">
+                Stop and transcribe
               </button>
             )}
           </div>
-          {recording ? <p className="muted">Recording in progress... click stop when done.</p> : null}
+          {recording ? <p className="muted">Recording meeting audio... faster-whisper will transcribe immediately after you stop.</p> : null}
           {!recording && meetingAudio ? <p className="muted">Meeting file ready: {meetingAudio.name}</p> : null}
           {!recording && closingAudio ? <p className="muted">Closing file ready: {closingAudio.name}</p> : null}
           {!canUseMic ? <p className="muted">Mic recording is unavailable. Use file upload instead.</p> : null}

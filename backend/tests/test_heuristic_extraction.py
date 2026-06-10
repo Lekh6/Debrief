@@ -20,7 +20,10 @@ def test_heuristic_extraction_uses_closing_statement_and_matches_employees():
         employees=[employee],
     )
 
-    _summary, tasks, mode = asyncio.run(ExtractionService().extract(context))
+    service = ExtractionService()
+    service.settings.use_heuristic_extractor = True
+
+    _summary, tasks, mode = asyncio.run(service.extract(context))
 
     assert mode == "heuristic"
     assert tasks

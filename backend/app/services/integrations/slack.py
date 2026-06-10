@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 import httpx
@@ -24,9 +24,10 @@ class SlackService:
     async def send_task_dm(
         self,
         slack_user_id: str | None,
+        meeting_topic: str,
         title: str,
+        description: str,
         deadline: date | None,
-        meeting_transcript: str,
     ) -> SlackDeliveryResult:
         readiness_error = self._validate_ready()
         if readiness_error:
@@ -37,10 +38,11 @@ class SlackService:
                 status="missing_recipient",
                 error="Assignee is missing a Slack user ID.",
             )
-        if not meeting_transcript.strip():
+        task_transcript = description.strip()
+        if not task_transcript:
             return SlackDeliveryResult(
-                status="missing_transcript",
-                error="Meeting transcript is required before sending task DMs.",
+                status="missing_task",
+                error="Task details are required before sending task DMs.",
             )
 
         open_result = await self._call_slack_api("conversations.open", {"users": normalized_user_id})
@@ -50,8 +52,13 @@ class SlackService:
         dm_channel_id = (open_result.get("channel") or {}).get("id")
         if not dm_channel_id:
             return SlackDeliveryResult(status="failed", error="Slack did not return a DM channel ID.")
+        if not dm_channel_id.startswith("D"):
+            return SlackDeliveryResult(
+                status="failed",
+                error=f"Slack returned a non-DM channel ({dm_channel_id}) for recipient.",
+            )
 
-        message = self._build_task_dm_message(title, deadline, meeting_transcript)
+        message = self._build_task_dm_message(meeting_topic, title, description, deadline)
         post_result = await self._call_slack_api(
             "chat.postMessage",
             {
@@ -71,6 +78,56 @@ class SlackService:
             message_ts=post_result.get("ts"),
         )
 
+    async def publish_transcript(
+        self,
+        channel_id: str | None,
+        meeting_topic: str,
+        meeting_transcript: str,
+        meeting_date: datetime,
+        member_names: list[str],
+        closing_transcript: str | None = None,
+    ) -> SlackDeliveryResult:
+        readiness_error = self._validate_ready()
+        if readiness_error:
+            return readiness_error
+        normalized_channel_id = (channel_id or "").strip()
+        if not normalized_channel_id:
+            return SlackDeliveryResult(
+                status="missing_channel",
+                error="Project is missing a Slack channel ID.",
+            )
+        if not meeting_transcript.strip():
+            return SlackDeliveryResult(
+                status="missing_transcript",
+                error="Meeting transcript is required before publishing to Slack.",
+            )
+
+        message = self._build_transcript_message(
+            meeting_topic=meeting_topic,
+            meeting_transcript=meeting_transcript,
+            meeting_date=meeting_date,
+            member_names=member_names,
+            closing_transcript=closing_transcript,
+        )
+        post_result = await self._call_slack_api(
+            "chat.postMessage",
+            {
+                "channel": normalized_channel_id,
+                "text": message,
+                "mrkdwn": True,
+                "unfurl_links": False,
+                "unfurl_media": False,
+            },
+        )
+        if isinstance(post_result, SlackDeliveryResult):
+            return post_result
+
+        return SlackDeliveryResult(
+            status="delivered",
+            channel_id=post_result.get("channel") or normalized_channel_id,
+            message_ts=post_result.get("ts"),
+        )
+
     def _validate_ready(self) -> SlackDeliveryResult | None:
         if not self.bot_token:
             return SlackDeliveryResult(
@@ -84,17 +141,51 @@ class SlackService:
             )
         return None
 
-    def _build_task_dm_message(self, title: str, deadline: date | None, meeting_transcript: str) -> str:
+    def _build_task_dm_message(self, meeting_topic: str, title: str, description: str, deadline: date | None) -> str:
         deadline_text = deadline.isoformat() if deadline else "Not specified"
         return "\n".join(
             [
-                f"Task: {title}",
+                f"Meeting topic: {meeting_topic}",
+                "",
+                f"What you should do: {title}",
                 f"Deadline: {deadline_text}",
                 "",
-                "Meeting transcript:",
-                meeting_transcript.strip(),
+                "Task transcript:",
+                description.strip(),
             ]
         )
+
+    def _build_transcript_message(
+        self,
+        meeting_topic: str,
+        meeting_transcript: str,
+        meeting_date: datetime,
+        member_names: list[str],
+        closing_transcript: str | None = None,
+    ) -> str:
+        date_text = meeting_date.date().isoformat()
+        member_text = ", ".join(sorted({name.strip() for name in member_names if name and name.strip()})) or "Not specified"
+        parts = [
+            "========================================",
+            f"*Meeting topic:* {meeting_topic}",
+            f"*Date:* {date_text}",
+            f"*Members:* {member_text}",
+            "========================================",
+            "",
+            "*Meeting transcript:*",
+            self._format_transcript_block(meeting_transcript),
+        ]
+        if closing_transcript and closing_transcript.strip():
+            parts.extend(["", "*Closing transcript:*", self._format_transcript_block(closing_transcript)])
+        parts.extend(["", "========================================"])
+        return "\n".join(parts)
+
+    def _format_transcript_block(self, transcript: str) -> str:
+        lines = [line.strip() for line in transcript.replace("\r", "\n").split("\n") if line.strip()]
+        if len(lines) <= 1:
+            sentence_parts = [segment.strip() for segment in transcript.split(".") if segment.strip()]
+            lines = sentence_parts
+        return "\n".join(f"- {line}" for line in lines)
 
     def _normalize_user_id(self, slack_user_id: str) -> str:
         normalized = slack_user_id.strip()
@@ -102,7 +193,10 @@ class SlackService:
             normalized = normalized[2:-1]
         if "|" in normalized:
             normalized = normalized.split("|", 1)[0]
-        return normalized.lstrip("@").strip()
+        normalized = normalized.lstrip("@").strip()
+        if normalized.upper().startswith(("C", "G", "D")):
+            return ""
+        return normalized
 
     async def _call_slack_api(
         self,

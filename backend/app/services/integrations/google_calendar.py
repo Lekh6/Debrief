@@ -40,6 +40,12 @@ class GoogleCalendarService:
                 status="not_configured",
                 error="Google Calendar OAuth is not connected for this project.",
             )
+        if not assignee_email:
+            return GoogleCalendarResult(
+                event_id=None,
+                status="missing_attendee",
+                error="Google Calendar event was not created because the assignee is missing a calendar email.",
+            )
 
         payload = {
             "summary": title,
@@ -55,8 +61,7 @@ class GoogleCalendarService:
 
         if assignee_name:
             payload["description"] = f"{description}\n\nOwner: {assignee_name}".strip()
-        if assignee_email:
-            payload["attendees"] = [{"email": assignee_email}]
+        payload["attendees"] = [{"email": assignee_email}]
 
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -87,25 +92,15 @@ class GoogleCalendarService:
                 error="Google Calendar authorization expired or was revoked. Reconnect Google Calendar for this project and try again.",
             )
 
-        if assignee_email and "forbiddenForServiceAccounts" in response.text:
-            payload.pop("attendees", None)
-            payload["description"] = (
-                f"{payload.get('description', '').strip()}\n\nAssignee email recorded: {assignee_email}"
-            ).strip()
-            async with httpx.AsyncClient(timeout=30) as client:
-                fallback_response = await client.post(
-                    endpoint,
-                    headers=headers,
-                    json=payload,
-                    params={"sendUpdates": "none"},
-                )
-            if fallback_response.is_success:
-                data = fallback_response.json()
-                return GoogleCalendarResult(
-                    event_id=data.get("id"),
-                    status="created_without_attendee",
-                    error="Event created, but attendee invite was skipped because service accounts cannot invite attendees without domain-wide delegation.",
-                )
+        if "forbiddenForServiceAccounts" in response.text:
+            return GoogleCalendarResult(
+                event_id=None,
+                status="failed",
+                error=(
+                    "Google rejected attendee invites for this credential. Connect Google Calendar with OAuth "
+                    "for the project, or configure domain-wide delegation before retrying."
+                ),
+            )
 
         return GoogleCalendarResult(event_id=None, status="failed", error=response.text)
 

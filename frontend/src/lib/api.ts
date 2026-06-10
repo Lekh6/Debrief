@@ -66,6 +66,7 @@ export interface ConfirmTaskInput {
   deadline: string | null;
   confidence: TaskConfidence;
   confidence_reasons: Record<string, string>;
+  delivery_targets: DeliveryTargets;
 }
 
 export interface DeliveryTargets {
@@ -83,6 +84,7 @@ export interface HostReviewRow {
   confidence: TaskConfidence;
   confidence_reasons: Record<string, string>;
   included: boolean;
+  delivery_targets: DeliveryTargets;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";

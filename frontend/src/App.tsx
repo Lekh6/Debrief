@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import readmeContent from "../../README.md?raw";
 
 import { ConfirmationModal } from "./components/ConfirmationModal";
 import { UploadPanel } from "./components/UploadPanel";
@@ -17,24 +18,34 @@ import {
 } from "./lib/api";
 
 interface PushToastState {
+  title: string;
   successes: string[];
   failures: string[];
+  generatedAt: string;
 }
 
-type AppPage = "review" | "teams";
+type AppPage = "review" | "teams" | "profile" | "readme";
+
+interface AppPreferences {
+  accent: "moss" | "clay" | "ink";
+  compactMode: boolean;
+  reduceMotion: boolean;
+  cardReviewEnabled: boolean;
+  darkMode: boolean;
+}
 
 const fallbackProjects: Project[] = [
   {
     project_id: "168d62d7-e74a-49e7-b81d-a8b83be46ea2",
     name: "Website Redesign Demo",
-    jira_project_key: "WRD",
+    jira_project_key: "KAN",
     slack_channel_id: "C-DEMO-WEB",
     employees: [],
   },
   {
     project_id: "b1c18e49-48cb-4181-aa01-1957df96413d",
     name: "Mobile Launch Demo",
-    jira_project_key: "MLD",
+    jira_project_key: "KAN",
     slack_channel_id: "C-DEMO-MOBILE",
     employees: [],
   },
@@ -69,22 +80,166 @@ function toReviewRows(result: ExtractionResponse): HostReviewRow[] {
       confidence: primaryTask?.confidence ?? blankConfidence(),
       confidence_reasons: primaryTask?.confidence_reasons ?? {},
       included: employeeTasks.length > 0,
+      delivery_targets: { ...defaultDeliveryTargets },
     };
   });
 }
 
 function toConfirmTasks(rows: HostReviewRow[]): ConfirmTaskInput[] {
   return rows
-    .filter((row) => row.included && row.purpose.trim())
+    .filter((row) => row.included)
     .map((row) => ({
-      title: row.purpose.split("\n")[0].slice(0, 120) || `${row.employee_name} task`,
-      description: row.purpose,
+      title: row.purpose.split("\n")[0].trim().slice(0, 120) || `${row.employee_name} task`,
+      description: row.purpose.trim() || `${row.employee_name} task`,
       assignee_id: row.employee_id,
       assignee_name: row.employee_name,
       deadline: row.deadline,
       confidence: row.confidence,
       confidence_reasons: row.confidence_reasons,
+      delivery_targets: row.delivery_targets,
     }));
+}
+
+function ReadmePage() {
+  return (
+    <section className="panel readme-panel">
+      <div className="panel-heading">
+        <p className="eyebrow">Project guide</p>
+        <h2>README.md</h2>
+      </div>
+      <pre>{readmeContent}</pre>
+    </section>
+  );
+}
+
+function ProfilePreferencesPage({
+  preferences,
+  onPreferencesChange,
+}: {
+  preferences: AppPreferences;
+  onPreferencesChange: (updates: Partial<AppPreferences>) => void;
+}) {
+  return (
+    <section className="panel preferences-panel">
+      <div className="panel-heading">
+        <p className="eyebrow">Profile</p>
+        <h2>Preferences</h2>
+      </div>
+
+      <div className="profile-grid">
+        <article className="profile-block">
+          <span className="avatar-mark">LK</span>
+          <div>
+            <h3>Lekha</h3>
+            <p className="muted">Host workspace preferences are saved for this browser session.</p>
+          </div>
+        </article>
+
+        <article className="preference-block">
+          <h3>Accent</h3>
+          <div className="segmented-control">
+            {(["moss", "clay", "ink"] as const).map((accent) => (
+              <button
+                className={preferences.accent === accent ? "active" : ""}
+                key={accent}
+                onClick={() => onPreferencesChange({ accent })}
+                type="button"
+              >
+                {accent}
+              </button>
+            ))}
+          </div>
+        </article>
+
+        <article className="preference-block">
+          <h3>Workspace</h3>
+          <label className="toggle-row">
+            <span>Compact mode</span>
+            <input
+              checked={preferences.compactMode}
+              type="checkbox"
+              onChange={(event) => onPreferencesChange({ compactMode: event.target.checked })}
+            />
+          </label>
+          <label className="toggle-row">
+            <span>Reduce motion</span>
+            <input
+              checked={preferences.reduceMotion}
+              type="checkbox"
+              onChange={(event) => onPreferencesChange({ reduceMotion: event.target.checked })}
+            />
+          </label>
+          <label className="toggle-row">
+            <span>Member card review</span>
+            <input
+              checked={preferences.cardReviewEnabled}
+              type="checkbox"
+              onChange={(event) => onPreferencesChange({ cardReviewEnabled: event.target.checked })}
+            />
+          </label>
+          <label className="toggle-row">
+            <span>Dark mode</span>
+            <input
+              checked={preferences.darkMode}
+              type="checkbox"
+              onChange={(event) => onPreferencesChange({ darkMode: event.target.checked })}
+            />
+          </label>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function TranscriptPreview({ result }: { result: ExtractionResponse }) {
+  const [showFullTranscript, setShowFullTranscript] = useState(false);
+  const transcriptLines = result.meeting_transcript.split(/\r?\n/).filter((line) => line.trim());
+  const previewLines = transcriptLines.slice(0, 7);
+
+  return (
+    <>
+      <section className="panel transcript-panel">
+        <div className="panel-heading inline-heading">
+          <div>
+            <p className="eyebrow">Context</p>
+            <h2>Resolved transcripts</h2>
+          </div>
+          {transcriptLines.length > 7 ? (
+            <button className="secondary-button" onClick={() => setShowFullTranscript(true)} type="button">
+              Show more
+            </button>
+          ) : null}
+        </div>
+        <div className="transcript-strip">
+          <article>
+            <h3>Meeting transcript</h3>
+            <p className="transcript-content">{previewLines.join("\n")}</p>
+          </article>
+          <article>
+            <h3>AI meeting summary</h3>
+            <p className="transcript-content">{result.meeting_summary.join("\n")}</p>
+          </article>
+        </div>
+      </section>
+
+      {showFullTranscript ? (
+        <section className="fullscreen-window">
+          <div className="fullscreen-window-card">
+            <div className="panel-heading inline-heading">
+              <div>
+                <p className="eyebrow">Meeting transcript</p>
+                <h2>Full transcript</h2>
+              </div>
+              <button className="secondary-button" onClick={() => setShowFullTranscript(false)} type="button">
+                Back
+              </button>
+            </div>
+            <p className="transcript-content transcript-content-full">{result.meeting_transcript}</p>
+          </div>
+        </section>
+      ) : null}
+    </>
+  );
 }
 
 function LoginPage({ onLogin }: { onLogin: () => void }) {
@@ -320,6 +475,13 @@ export default function App() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [pushToast, setPushToast] = useState<PushToastState | null>(null);
   const [deliveryTargets, setDeliveryTargets] = useState<DeliveryTargets>(defaultDeliveryTargets);
+  const [preferences, setPreferences] = useState<AppPreferences>({
+    accent: "moss",
+    compactMode: false,
+    reduceMotion: false,
+    cardReviewEnabled: true,
+    darkMode: false,
+  });
 
   async function refreshProjects() {
     try {
@@ -341,6 +503,13 @@ export default function App() {
     }, 5000);
     return () => window.clearInterval(intervalId);
   }, [authenticated]);
+
+  useEffect(() => {
+    document.body.classList.toggle("theme-dark", preferences.darkMode);
+    return () => {
+      document.body.classList.remove("theme-dark");
+    };
+  }, [preferences.darkMode]);
 
   if (!authenticated) {
     return <LoginPage onLogin={() => setAuthenticated(true)} />;
@@ -375,6 +544,16 @@ export default function App() {
     );
   }
 
+  function handleGlobalDeliveryTargetChange(updates: Partial<DeliveryTargets>) {
+    setDeliveryTargets((current) => ({ ...current, ...updates }));
+    setReviewRows((current) =>
+      current.map((row) => ({
+        ...row,
+        delivery_targets: { ...row.delivery_targets, ...updates },
+      })),
+    );
+  }
+
   async function handleConfirm() {
     if (!result) {
       return;
@@ -387,9 +566,6 @@ export default function App() {
       const jiraCreated = confirmed.filter((task: any) => task.jira_status === "created").length;
       const jiraCreatedWithoutAssignee = confirmed.filter((task: any) => task.jira_status === "created_without_assignee").length;
       const calendarCreated = confirmed.filter((task: any) => task.google_calendar_status === "created").length;
-      const calendarCreatedWithoutAttendee = confirmed.filter(
-        (task: any) => task.google_calendar_status === "created_without_attendee",
-      ).length;
       const calendarNeedsReconnect = confirmed.filter((task: any) => task.google_calendar_status === "needs_reconnect").length;
       const slackDelivered = confirmed.filter((task: any) => task.slack_delivery_status === "delivered").length;
       const slackIssues = confirmed.filter(
@@ -410,28 +586,34 @@ export default function App() {
       const jiraErrorSample =
         confirmed.find((task: any) => task.jira_status === "failed" && task.jira_error)?.jira_error ?? null;
       setSuccessMessage(`Saved ${confirmed.length} selected tasks.`);
+      const successLines = [
+        jiraCreated ? `${jiraCreated} Jira task${jiraCreated > 1 ? "s" : ""} pushed successfully.` : "",
+        jiraCreatedWithoutAssignee
+          ? `${jiraCreatedWithoutAssignee} Jira task${jiraCreatedWithoutAssignee > 1 ? "s" : ""} created without assignee.`
+          : "",
+        calendarCreated ? `${calendarCreated} calendar invite${calendarCreated > 1 ? "s" : ""} sent successfully.` : "",
+        slackDelivered ? `${slackDelivered} Slack update${slackDelivered > 1 ? "s" : ""} delivered.` : "",
+      ].filter(Boolean);
+      const failureLines = [
+        jiraFailed ? `${jiraFailed} Jira push${jiraFailed > 1 ? "es" : ""} failed.` : "",
+        calendarFailed ? `${calendarFailed} calendar push${calendarFailed > 1 ? "es" : ""} failed.` : "",
+        calendarNeedsReconnect ? "Google Calendar needs to be reconnected for this project." : "",
+        slackFailed
+          ? `${slackFailed} Slack update${slackFailed > 1 ? "s need" : " needs"} attention (${slackIssues[0].slack_delivery_status}).`
+          : "",
+        jiraErrorSample ? `Jira: ${jiraErrorSample}` : "",
+        calendarErrorSample ? `Calendar: ${calendarErrorSample}` : "",
+      ].filter(Boolean);
+      const noTasksSubmitted = confirmed.length === 0;
       setPushToast({
-        successes: [
-          jiraCreated ? `${jiraCreated} Jira task${jiraCreated > 1 ? "s" : ""} pushed successfully.` : "",
-          jiraCreatedWithoutAssignee
-            ? `${jiraCreatedWithoutAssignee} Jira task${jiraCreatedWithoutAssignee > 1 ? "s" : ""} created without assignee.`
-            : "",
-          calendarCreated ? `${calendarCreated} calendar invite${calendarCreated > 1 ? "s" : ""} sent successfully.` : "",
-          calendarCreatedWithoutAttendee
-            ? `${calendarCreatedWithoutAttendee} calendar event${calendarCreatedWithoutAttendee > 1 ? "s" : ""} created without attendee invite.`
-            : "",
-          slackDelivered ? `${slackDelivered} Slack update${slackDelivered > 1 ? "s" : ""} delivered.` : "",
-        ].filter(Boolean),
-        failures: [
-          jiraFailed ? `${jiraFailed} Jira push${jiraFailed > 1 ? "es" : ""} failed.` : "",
-          calendarFailed ? `${calendarFailed} calendar push${calendarFailed > 1 ? "es" : ""} failed.` : "",
-          calendarNeedsReconnect ? "Google Calendar needs to be reconnected for this project." : "",
-          slackFailed
-            ? `${slackFailed} Slack update${slackFailed > 1 ? "s need" : " needs"} attention (${slackIssues[0].slack_delivery_status}).`
-            : "",
-          jiraErrorSample ? `Jira: ${jiraErrorSample}` : "",
-          calendarErrorSample ? `Calendar: ${calendarErrorSample}` : "",
-        ].filter(Boolean),
+        title: noTasksSubmitted
+          ? "No tasks selected"
+          : failureLines.length
+            ? "Delivery completed with issues"
+            : "Delivery completed",
+        successes: successLines,
+        failures: failureLines,
+        generatedAt: new Date().toLocaleTimeString(),
       });
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unknown confirmation error");
@@ -441,18 +623,31 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main
+      className={[
+        "app-shell",
+        `accent-${preferences.accent}`,
+        preferences.darkMode ? "theme-dark" : "",
+        preferences.compactMode ? "compact-mode" : "",
+        preferences.reduceMotion ? "reduce-motion" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <nav className="app-nav">
-        <div>
-          <p className="eyebrow">Debrief Host Console</p>
-          <strong>Signed in as leka</strong>
-        </div>
+        <strong className="brand-mark">debrief</strong>
         <div className="nav-actions">
           <button className={page === "review" ? "nav-button active" : "nav-button"} onClick={() => setPage("review")} type="button">
-            Main review
+            Review
           </button>
           <button className={page === "teams" ? "nav-button active" : "nav-button"} onClick={() => setPage("teams")} type="button">
-            Manage teams
+            Teams
+          </button>
+          <button className={page === "profile" ? "nav-button active" : "nav-button"} onClick={() => setPage("profile")} type="button">
+            Profile
+          </button>
+          <button className={page === "readme" ? "nav-button active" : "nav-button"} onClick={() => setPage("readme")} type="button">
+            README
           </button>
           <button className="secondary-button" onClick={() => setAuthenticated(false)} type="button">
             Logout
@@ -460,21 +655,10 @@ export default function App() {
         </div>
       </nav>
 
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Post-Meeting Task Automation</p>
-          <h1>Turn the last minute of a meeting into tracked work.</h1>
-          <p className="hero-copy">
-            Closing statements become the source of truth, the meeting transcript fills the gaps, and the host gets a fast
-            confidence-based review flow before anything is pushed downstream.
-          </p>
-        </div>
-
-        <div className="status-card">
-          <p>Current build focus</p>
-          <strong>{page === "teams" ? "Team and project management" : "Host-controlled delivery confirmation"}</strong>
-          <span>{result ? `Extraction mode: ${result.extraction_mode}` : `${projects.length} projects loaded from database.`}</span>
-        </div>
+      <section className="status-ribbon">
+        <span>signed in as leka</span>
+        <strong>{page === "teams" ? "team directory" : page === "profile" ? "preferences" : page === "readme" ? "project guide" : "host review"}</strong>
+        <span>{result ? `extraction: ${result.extraction_mode}` : `${projects.length} projects loaded`}</span>
       </section>
 
       {error ? <div className="banner banner-error">{error}</div> : null}
@@ -484,6 +668,10 @@ export default function App() {
           <button className="toast-close" onClick={() => setPushToast(null)} type="button">
             x
           </button>
+          <div className="toast-heading">
+            <strong>{pushToast.title}</strong>
+            <span className="muted">{pushToast.generatedAt}</span>
+          </div>
           {pushToast.successes.length ? (
             <div className="toast-section toast-success">
               <strong>Succeeded</strong>
@@ -500,33 +688,28 @@ export default function App() {
               ))}
             </div>
           ) : null}
+          {!pushToast.successes.length && !pushToast.failures.length ? (
+            <div className="toast-section">
+              <p>No included tasks were submitted. Select at least one member task before confirming.</p>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       {page === "teams" ? (
         <TeamManagementPage busy={busy} onError={setError} onRefresh={refreshProjects} projects={projects} />
+      ) : page === "profile" ? (
+        <ProfilePreferencesPage
+          preferences={preferences}
+          onPreferencesChange={(updates) => setPreferences((current) => ({ ...current, ...updates }))}
+        />
+      ) : page === "readme" ? (
+        <ReadmePage />
       ) : (
         <>
           <UploadPanel busy={busy} onSubmit={handleExtract} projects={projects} />
 
-          {result ? (
-            <section className="panel transcript-panel">
-              <div className="panel-heading">
-                <p className="eyebrow">Context</p>
-                <h2>Resolved transcripts</h2>
-              </div>
-              <div className="transcript-grid">
-                <article>
-                  <h3>Meeting transcript</h3>
-                  <p>{result.meeting_transcript}</p>
-                </article>
-                <article>
-                  <h3>AI meeting summary</h3>
-                  <p>{result.meeting_summary.join("\n")}</p>
-                </article>
-              </div>
-            </section>
-          ) : null}
+          {result ? <TranscriptPreview result={result} /> : null}
 
           {result ? (
             <ConfirmationModal
@@ -535,10 +718,11 @@ export default function App() {
               employees={result?.employees ?? []}
               onClose={() => setResult(null)}
               onConfirm={handleConfirm}
-              onDeliveryTargetChange={(updates) => setDeliveryTargets((current) => ({ ...current, ...updates }))}
+              onDeliveryTargetChange={handleGlobalDeliveryTargetChange}
               onRowChange={handleRowChange}
               result={result}
               rows={reviewRows}
+              cardReviewEnabled={preferences.cardReviewEnabled}
             />
           ) : null}
         </>

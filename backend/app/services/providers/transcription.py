@@ -1,8 +1,12 @@
 import asyncio
 import os
 import tempfile
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
+from uuid import uuid4
+
 from fastapi import UploadFile
 
 from app.core.config import get_settings
@@ -47,6 +51,7 @@ class TranscriptionService:
             self.settings.faster_whisper_compute_type,
         )
         suffix = os.path.splitext(filename)[1] or ".wav"
+        self._persist_recording(filename=filename, file_content=file_content, suffix=suffix)
         temp_path = ""
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
@@ -69,6 +74,17 @@ class TranscriptionService:
             if temp_path and os.path.exists(temp_path):
                 os.unlink(temp_path)
 
+    def _persist_recording(self, filename: str, file_content: bytes, suffix: str) -> None:
+        root_dir = Path(__file__).resolve().parents[4]
+        recordings_dir = root_dir / "recordings"
+        recordings_dir.mkdir(parents=True, exist_ok=True)
+
+        file_stem = Path(filename).stem.strip() or "recording"
+        safe_stem = "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in file_stem)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        artifact_name = f"{safe_stem}-{timestamp}-{uuid4().hex[:8]}{suffix}"
+        (recordings_dir / artifact_name).write_bytes(file_content)
+
 
 @lru_cache(maxsize=1)
 def _get_faster_whisper_model(model_name: str, device: str, compute_type: str):
@@ -86,4 +102,3 @@ def _get_faster_whisper_model(model_name: str, device: str, compute_type: str):
         if requested_device != "cpu" and ("cublas" in lowered or "cuda" in lowered):
             return WhisperModel(model_name, device="cpu", compute_type="int8")
         raise
-

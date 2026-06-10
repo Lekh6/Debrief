@@ -1,19 +1,20 @@
-# Debrief - Post-Meeting Task Automation
+# Debrief
 
-Debrief turns meeting transcripts into reviewable tasks, then pushes confirmed tasks to Jira, Google Calendar, and Slack.
+Debrief turns meeting audio or transcripts into reviewable owner-by-owner tasks, then pushes confirmed work to Jira, Google Calendar, and Slack.
 
-## Current project state
+## What Works Now
 
-- Backend: FastAPI + SQLAlchemy (`backend/`)
-- Frontend: React + TypeScript + Vite (`frontend/`)
-- Local transcription: `faster-whisper` (audio -> transcript)
-- Integrations wired in confirm flow:
-  - Jira issue creation
-  - Google Calendar event creation
-  - Slack DM delivery to assignees
-- Extraction supports Gemini and a heuristic fallback
+- Paste a transcript, upload audio, or record from the browser.
+- Audio transcription runs locally with `faster-whisper`.
+- The backend is configured for CPU transcription with `int8`, so CUDA is not required.
+- The host reviews extracted work per team member before anything is pushed.
+- Each member can have separate delivery targets: Slack, Google Calendar, Jira, or any combination.
+- The global delivery controls can force one platform setting across every selected member.
+- Slack delivery posts the full transcript to the project channel and DMs selected assignees.
+- Google Calendar requires an attendee email and no longer creates attendee-less events silently.
+- Jira issue creation is wired, but live diagnostics currently show the configured Jira token/project access needs attention.
 
-## Easiest way to run (Windows demo mode)
+## Run The App
 
 From the repo root:
 
@@ -21,32 +22,25 @@ From the repo root:
 .\scripts\start_demo.ps1
 ```
 
-This starts backend and frontend in separate PowerShell windows.
+Then open:
 
-- Backend URL: `http://127.0.0.1:8005`
-- Frontend URL: `http://localhost:5173`
+- Frontend: `http://localhost:5173`
+- Backend health: `http://127.0.0.1:8005/health`
 - Demo login: `leka` / `le124`
 
-## Manual run (recommended for development)
+## Manual Setup
 
-### 1) Backend setup
+Backend:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -e .\backend
-```
-
-### 2) Backend run
-
-```powershell
 cd .\backend
 ..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8005
 ```
 
-### 3) Frontend setup + run
-
-In a second terminal:
+Frontend:
 
 ```powershell
 cd .\frontend
@@ -54,60 +48,80 @@ npm install
 npm run dev
 ```
 
-The frontend uses `frontend/.env` and points to `http://127.0.0.1:8005/api/v1` by default.
+## Faster-Whisper
 
-## Environment config
+Debrief uses the open-source `faster-whisper` package through `backend/app/services/providers/transcription.py`.
 
-- Backend reads settings from `backend/.env`
-- Use `backend/.env.example` as reference
-- Faster-whisper is local and configured by:
-  - `FASTER_WHISPER_MODEL` (for example `small`, `medium`, `large-v3`)
-  - `FASTER_WHISPER_DEVICE` (`auto`, `cpu`, `cuda`)
-  - `FASTER_WHISPER_COMPUTE_TYPE` (`int8`, `int8_float16`, `float16`, `float32`)
-  - `FASTER_WHISPER_LANGUAGE` (leave empty for auto-detect, or set `en`)
-  - `FASTER_WHISPER_BEAM_SIZE`
-  - `FASTER_WHISPER_VAD_FILTER`
-- Key integration toggles:
-  - `AUTO_CREATE_JIRA_ON_CONFIRM`
-  - `AUTO_CREATE_GOOGLE_CALENDAR_ON_CONFIRM`
-  - `AUTO_NOTIFY_SLACK_ON_CONFIRM`
+Recommended local settings:
 
-Note: the frontend confirm modal also sends explicit delivery targets, so those UI choices take priority per request.
-
-## Seed demo data (optional)
-
-After backend is running:
-
-```powershell
-cd .\backend
-..\.venv\Scripts\python -m app.seed_demo
+```env
+FASTER_WHISPER_MODEL=small
+FASTER_WHISPER_DEVICE=cpu
+FASTER_WHISPER_COMPUTE_TYPE=int8
+FASTER_WHISPER_LANGUAGE=
+FASTER_WHISPER_BEAM_SIZE=5
+FASTER_WHISPER_VAD_FILTER=true
 ```
 
-## Project layout
-
-- `backend/` API routes, extraction pipeline, integrations, DB models
-- `frontend/` host review UI + team management
-- `scripts/` diagnostics and smoke scripts
-- `docs/` architecture and API notes
-
-## Troubleshooting
-
-- Install system dependency for audio decoding:
+Install FFmpeg if audio decoding fails:
 
 ```powershell
 winget install Gyan.FFmpeg
 ```
 
-- If backend fails with Google auth import errors, install missing dependencies in the venv:
+## Integration Settings
 
-```powershell
-.\.venv\Scripts\python -m pip install requests
-```
+Backend settings live in `backend/.env`.
 
-- On first transcription run, faster-whisper downloads model files locally, so the first request can be slower.
-
-- If extraction fails due to model/provider availability, switch to heuristic mode in `backend/.env`:
+Important keys:
 
 ```env
-USE_HEURISTIC_EXTRACTOR=true
+JIRA_BASE_URL=
+JIRA_USER_EMAIL=
+JIRA_API_TOKEN=
+SLACK_BOT_TOKEN=
+GOOGLE_CALENDAR_ID=
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URI=http://127.0.0.1:8005/api/v1/auth/google/callback
 ```
+
+Use the in-app project page to store each member's Jira email, calendar email, and Slack user ID.
+
+## Delivery Behavior
+
+- Jira creates one issue per selected task when that member has Jira enabled.
+- Google Calendar creates one event per selected task when that member has Google Calendar enabled and a calendar email exists.
+- Slack uploads the transcript once to the project channel, then DMs each member with Slack enabled.
+- If a member-level platform toggle is off, that platform is skipped for that member only.
+
+## Useful Checks
+
+Run backend tests:
+
+```powershell
+cd .\backend
+..\.venv\Scripts\python.exe -m pytest -p no:cacheprovider
+```
+
+Check Jira access:
+
+```powershell
+cd .\backend
+..\.venv\Scripts\python.exe ..\scripts\jira_diagnostics.py
+```
+
+Run the confirmation smoke flow:
+
+```powershell
+py -3 scripts\test_confirm_flow.py
+```
+
+## Project Map
+
+- `backend/app/api`: FastAPI routes
+- `backend/app/services/integrations`: Jira, Google Calendar, Slack
+- `backend/app/services/providers`: transcription and extraction providers
+- `frontend/src`: React host console
+- `scripts`: demo, smoke, and diagnostics helpers
+- `docs`: architecture and API notes

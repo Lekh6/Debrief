@@ -14,12 +14,13 @@ async def main() -> None:
     for name, slack_user_id in recipients:
         result = await service.send_task_dm(
             slack_user_id=slack_user_id,
+            meeting_topic="Data Platform Upgrade",
             title="Debrief Slack smoke test",
-            deadline=date(2026, 4, 22),
-            meeting_transcript=(
+            description=(
                 "Smoke test transcript: verifying Debrief can send direct task "
                 "messages with transcript context."
             ),
+            deadline=date(2026, 4, 22),
         )
         print(
             name,

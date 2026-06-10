@@ -1,4 +1,3 @@
-from functools import lru_cache
 import json
 
 from pydantic import Field, field_validator
@@ -20,7 +19,7 @@ class Settings(BaseSettings):
     sql_echo: bool = False
 
     faster_whisper_model: str = "small"
-    faster_whisper_device: str = "auto"
+    faster_whisper_device: str = "cpu"
     faster_whisper_compute_type: str = "int8"
     faster_whisper_language: str | None = None
     faster_whisper_beam_size: int = 5
@@ -58,6 +57,5 @@ class Settings(BaseSettings):
         return value
 
 
-@lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
