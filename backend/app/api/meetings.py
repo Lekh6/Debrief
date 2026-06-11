@@ -182,10 +182,7 @@ async def confirm_meeting_tasks(
                     description=task.description,
                     deadline=task.deadline,
                 )
-                if transcript_result.status == "delivered" and slack_result.status == "delivered":
-                    task.slack_delivery_status = "delivered"
-                else:
-                    task.slack_delivery_status = f"channel_{transcript_result.status};dm_{slack_result.status}"
+                task.slack_delivery_status = f"channel_{transcript_result.status};dm_{slack_result.status}"
             except Exception:
                 task.slack_delivery_status = "failed"
 

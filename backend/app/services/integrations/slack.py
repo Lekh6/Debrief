@@ -147,6 +147,12 @@ class SlackService:
                 error="Project is missing a Slack channel ID.",
                 intended_mode="channel",
             )
+        if not normalized_channel_id.startswith("C"):
+            return SlackDeliveryResult(
+                status="invalid_channel",
+                error=f"Slack channel ID must start with C (got {normalized_channel_id}).",
+                intended_mode="channel",
+            )
         if not meeting_transcript.strip():
             return SlackDeliveryResult(
                 status="missing_transcript",
@@ -211,6 +217,7 @@ class SlackService:
         deadline_text = deadline.isoformat() if deadline else "Not specified"
         return "\n".join(
             [
+                "===== TASK ASSIGNMENT =====",
                 f"Meeting topic: {meeting_topic}",
                 "",
                 f"What you should do: {title}",
@@ -218,6 +225,8 @@ class SlackService:
                 "",
                 "Task transcript:",
                 description.strip(),
+                "",
+                "============================",
             ]
         )
 
@@ -243,7 +252,12 @@ class SlackService:
         ]
         if closing_transcript and closing_transcript.strip():
             parts.extend(["", "*Closing transcript:*", self._format_transcript_block(closing_transcript)])
-        parts.extend(["", "========================================"])
+        parts.extend([
+            "",
+            "========================================",
+            "",
+            "===== INDIVIDUAL TASK ASSIGNMENTS =====",
+        ])
         return "\n".join(parts)
 
     def _format_transcript_block(self, transcript: str) -> str:

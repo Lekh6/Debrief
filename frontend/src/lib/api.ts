@@ -156,7 +156,8 @@ export async function addProjectMember(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Failed to add team member" }));
-    throw new Error(error.detail ?? "Failed to add team member");
+    const message = Array.isArray(error.detail) ? error.detail.map((e: any) => e.msg).join("; ") : (error.detail ?? "Failed to add team member");
+    throw new Error(message);
   }
 
   return response.json();

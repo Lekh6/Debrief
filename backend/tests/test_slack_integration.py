@@ -16,13 +16,16 @@ def test_task_dm_message_matches_required_format():
     )
 
     assert message == (
+        "===== TASK ASSIGNMENT =====\n"
         "Meeting topic: Data Platform Upgrade\n"
         "\n"
         "What you should do: Send launch plan\n"
         "Deadline: 2026-04-30\n"
         "\n"
         "Task transcript:\n"
-        "Rahul agreed to send the launch plan."
+        "Rahul agreed to send the launch plan.\n"
+        "\n"
+        "============================"
     )
 
 
@@ -66,7 +69,9 @@ def test_transcript_message_includes_meeting_and_closing_transcripts():
         "*Closing transcript:*\n"
         "- Clara will validate analytics mapping\n"
         "\n"
-        "========================================"
+        "========================================\n"
+        "\n"
+        "===== INDIVIDUAL TASK ASSIGNMENTS ====="
     )
 
 
@@ -170,6 +175,28 @@ def test_channel_publish_posts_to_project_channel_id():
     assert result.final_channel_id == "C999"
     assert service.calls[0][0] == "chat.postMessage"
     assert service.calls[0][1]["channel"] == "C999"
+
+
+def test_channel_publish_rejects_non_channel_prefix():
+    service = _RoutingProbeSlackService(
+        responses={
+            "chat.postMessage": {"ok": True, "channel": "D999", "ts": "3.4"},
+        }
+    )
+
+    result = asyncio.run(
+        service.publish_transcript(
+            channel_id="D999",
+            meeting_topic="Data Platform Upgrade",
+            meeting_transcript="Should not be posted.",
+            meeting_date=datetime(2026, 6, 10, 9, 30, 0),
+            member_names=["Rahul Mehta"],
+        )
+    )
+
+    assert result.status == "invalid_channel"
+    assert "must start with C" in (result.error or "")
+    assert len(service.calls) == 0
 
 
 def test_dm_fails_when_conversations_open_returns_non_dm_channel():

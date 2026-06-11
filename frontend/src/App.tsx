@@ -1,5 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import readmeContent from "../../README.md?raw";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ConfirmationModal } from "./components/ConfirmationModal";
 import { UploadPanel } from "./components/UploadPanel";
@@ -17,17 +16,9 @@ import {
   listProjects,
 } from "./lib/api";
 
-interface PushToastState {
-  title: string;
-  successes: string[];
-  failures: string[];
-  generatedAt: string;
-}
-
-type AppPage = "review" | "teams" | "profile" | "readme";
+type AppPage = "home" | "teams" | "profile";
 
 interface AppPreferences {
-  accent: "moss" | "clay" | "ink";
   compactMode: boolean;
   reduceMotion: boolean;
   cardReviewEnabled: boolean;
@@ -100,18 +91,6 @@ function toConfirmTasks(rows: HostReviewRow[]): ConfirmTaskInput[] {
     }));
 }
 
-function ReadmePage() {
-  return (
-    <section className="panel readme-panel">
-      <div className="panel-heading">
-        <p className="eyebrow">Project guide</p>
-        <h2>README.md</h2>
-      </div>
-      <pre>{readmeContent}</pre>
-    </section>
-  );
-}
-
 function ProfilePreferencesPage({
   preferences,
   onPreferencesChange,
@@ -122,7 +101,7 @@ function ProfilePreferencesPage({
   return (
     <section className="panel preferences-panel">
       <div className="panel-heading">
-        <p className="eyebrow">Profile</p>
+        <p className="eyebrow">Settings</p>
         <h2>Preferences</h2>
       </div>
 
@@ -136,55 +115,51 @@ function ProfilePreferencesPage({
         </article>
 
         <article className="preference-block">
-          <h3>Accent</h3>
-          <div className="segmented-control">
-            {(["moss", "clay", "ink"] as const).map((accent) => (
-              <button
-                className={preferences.accent === accent ? "active" : ""}
-                key={accent}
-                onClick={() => onPreferencesChange({ accent })}
-                type="button"
-              >
-                {accent}
-              </button>
-            ))}
-          </div>
-        </article>
-
-        <article className="preference-block">
           <h3>Workspace</h3>
-          <label className="toggle-row">
+          <div className="toggle-row">
             <span>Compact mode</span>
-            <input
-              checked={preferences.compactMode}
-              type="checkbox"
-              onChange={(event) => onPreferencesChange({ compactMode: event.target.checked })}
-            />
-          </label>
-          <label className="toggle-row">
+            <label className="toggle-switch">
+              <input
+                checked={preferences.compactMode}
+                type="checkbox"
+                onChange={(event) => onPreferencesChange({ compactMode: event.target.checked })}
+              />
+              <span className="toggle-track"><span className="toggle-thumb" /></span>
+            </label>
+          </div>
+          <div className="toggle-row">
             <span>Reduce motion</span>
-            <input
-              checked={preferences.reduceMotion}
-              type="checkbox"
-              onChange={(event) => onPreferencesChange({ reduceMotion: event.target.checked })}
-            />
-          </label>
-          <label className="toggle-row">
+            <label className="toggle-switch">
+              <input
+                checked={preferences.reduceMotion}
+                type="checkbox"
+                onChange={(event) => onPreferencesChange({ reduceMotion: event.target.checked })}
+              />
+              <span className="toggle-track"><span className="toggle-thumb" /></span>
+            </label>
+          </div>
+          <div className="toggle-row">
             <span>Member card review</span>
-            <input
-              checked={preferences.cardReviewEnabled}
-              type="checkbox"
-              onChange={(event) => onPreferencesChange({ cardReviewEnabled: event.target.checked })}
-            />
-          </label>
-          <label className="toggle-row">
+            <label className="toggle-switch">
+              <input
+                checked={preferences.cardReviewEnabled}
+                type="checkbox"
+                onChange={(event) => onPreferencesChange({ cardReviewEnabled: event.target.checked })}
+              />
+              <span className="toggle-track"><span className="toggle-thumb" /></span>
+            </label>
+          </div>
+          <div className="toggle-row">
             <span>Dark mode</span>
-            <input
-              checked={preferences.darkMode}
-              type="checkbox"
-              onChange={(event) => onPreferencesChange({ darkMode: event.target.checked })}
-            />
-          </label>
+            <label className="toggle-switch">
+              <input
+                checked={preferences.darkMode}
+                type="checkbox"
+                onChange={(event) => onPreferencesChange({ darkMode: event.target.checked })}
+              />
+              <span className="toggle-track"><span className="toggle-thumb" /></span>
+            </label>
+          </div>
         </article>
       </div>
     </section>
@@ -286,11 +261,13 @@ function TeamManagementPage({
   projects,
   onRefresh,
   onError,
+  onClearMessages,
 }: {
   busy: boolean;
   projects: Project[];
   onRefresh: () => Promise<void>;
   onError: (message: string) => void;
+  onClearMessages: () => void;
 }) {
   const [newProject, setNewProject] = useState({ name: "", jira_project_key: "" });
   const [newMember, setNewMember] = useState({
@@ -328,6 +305,7 @@ function TeamManagementPage({
 
   async function handleAddMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    onClearMessages();
     try {
       await addProjectMember(newMember.project_id, {
         name: newMember.name,
@@ -337,7 +315,7 @@ function TeamManagementPage({
         slack_user_id: newMember.slack_user_id,
       });
       setNewMember({ project_id: newMember.project_id, name: "", team: "", jira_email: "", calendar_email: "", slack_user_id: "" });
-      await onRefresh();
+      await onRefresh().catch(() => {});
     } catch (requestError) {
       onError(requestError instanceof Error ? requestError.message : "Failed to add team member");
     }
@@ -436,27 +414,24 @@ function TeamManagementPage({
               <span>{project.employees.length} members</span>
             </div>
 
-            {Object.entries(teams).map(([teamName, members]) => (
-              <section className="directory-team" key={`${project.project_id}-${teamName}`}>
-                <h4>{teamName}</h4>
-                <div className="member-table">
-                  <div className="member-table-row member-table-head">
-                    <span>Name</span>
-                    <span>Google mail</span>
-                    <span>Jira associated mail</span>
-                    <span>Slack</span>
-                  </div>
-                  {members.map((member) => (
-                    <div className="member-table-row" key={member.employee_id}>
-                      <span>{member.name}</span>
-                      <span>{member.calendar_email || "Not set"}</span>
-                      <span>{member.jira_email || "Not set"}</span>
-                      <span>{member.slack_user_id || "Not set"}</span>
-                    </div>
-                  ))}
+            <div className="member-table">
+              <div className="member-table-row member-table-head">
+                <span>Name</span>
+                <span>Team</span>
+                <span>Google mail</span>
+                <span>Jira mail</span>
+                <span>Slack</span>
+              </div>
+              {project.employees.map((member) => (
+                <div className="member-table-row" key={member.employee_id}>
+                  <span>{member.name}</span>
+                  <span>{member.team}</span>
+                  <span>{member.calendar_email || "Not set"}</span>
+                  <span>{member.jira_email || "Not set"}</span>
+                  <span>{member.slack_user_id || "Not set"}</span>
                 </div>
-              </section>
-            ))}
+              ))}
+            </div>
           </article>
         ))}
       </div>
@@ -466,17 +441,17 @@ function TeamManagementPage({
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
-  const [page, setPage] = useState<AppPage>("review");
+  const [page, setPage] = useState<AppPage>("home");
+  const [cursorPos, setCursorPos] = useState({ x: -200, y: -200 });
+  const glowRef = useRef<HTMLDivElement>(null);
   const [result, setResult] = useState<ExtractionResponse | null>(null);
   const [reviewRows, setReviewRows] = useState<HostReviewRow[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [pushToast, setPushToast] = useState<PushToastState | null>(null);
   const [deliveryTargets, setDeliveryTargets] = useState<DeliveryTargets>(defaultDeliveryTargets);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [preferences, setPreferences] = useState<AppPreferences>({
-    accent: "moss",
     compactMode: false,
     reduceMotion: false,
     cardReviewEnabled: true,
@@ -511,6 +486,14 @@ export default function App() {
     };
   }, [preferences.darkMode]);
 
+  useEffect(() => {
+    function handleMouseMove(event: MouseEvent) {
+      setCursorPos({ x: event.clientX, y: event.clientY });
+    }
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
   if (!authenticated) {
     return <LoginPage onLogin={() => setAuthenticated(true)} />;
   }
@@ -524,8 +507,6 @@ export default function App() {
   }) {
     setBusy(true);
     setError(null);
-    setSuccessMessage(null);
-    setPushToast(null);
     try {
       const extraction = await extractMeetingTasks(payload);
       setResult(extraction);
@@ -555,66 +536,11 @@ export default function App() {
   }
 
   async function handleConfirm() {
-    if (!result) {
-      return;
-    }
-
+    if (!result) return;
     setBusy(true);
     setError(null);
     try {
-      const confirmed = await confirmMeetingTasks(result.meeting_id, toConfirmTasks(reviewRows), deliveryTargets);
-      const jiraCreated = confirmed.filter((task: any) => task.jira_status === "created").length;
-      const jiraCreatedWithoutAssignee = confirmed.filter((task: any) => task.jira_status === "created_without_assignee").length;
-      const calendarCreated = confirmed.filter((task: any) => task.google_calendar_status === "created").length;
-      const calendarNeedsReconnect = confirmed.filter((task: any) => task.google_calendar_status === "needs_reconnect").length;
-      const slackDelivered = confirmed.filter((task: any) => task.slack_delivery_status === "delivered").length;
-      const slackIssues = confirmed.filter(
-        (task: any) =>
-          task.slack_delivery_status &&
-          task.slack_delivery_status !== "delivered" &&
-          task.slack_delivery_status !== "not_sent",
-      );
-      const jiraFailed = confirmed.filter((task: any) => task.jira_status === "failed").length;
-      const calendarFailed = confirmed.filter((task: any) => task.google_calendar_status === "failed").length;
-      const slackFailed = slackIssues.length;
-      const calendarErrorSample =
-        confirmed.find((task: any) => task.google_calendar_status === "failed" && task.google_calendar_error)
-          ?.google_calendar_error ??
-        confirmed.find((task: any) => task.google_calendar_status === "needs_reconnect" && task.google_calendar_error)
-          ?.google_calendar_error ??
-        null;
-      const jiraErrorSample =
-        confirmed.find((task: any) => task.jira_status === "failed" && task.jira_error)?.jira_error ?? null;
-      setSuccessMessage(`Saved ${confirmed.length} selected tasks.`);
-      const successLines = [
-        jiraCreated ? `${jiraCreated} Jira task${jiraCreated > 1 ? "s" : ""} pushed successfully.` : "",
-        jiraCreatedWithoutAssignee
-          ? `${jiraCreatedWithoutAssignee} Jira task${jiraCreatedWithoutAssignee > 1 ? "s" : ""} created without assignee.`
-          : "",
-        calendarCreated ? `${calendarCreated} calendar invite${calendarCreated > 1 ? "s" : ""} sent successfully.` : "",
-        slackDelivered ? `${slackDelivered} Slack update${slackDelivered > 1 ? "s" : ""} delivered.` : "",
-      ].filter(Boolean);
-      const failureLines = [
-        jiraFailed ? `${jiraFailed} Jira push${jiraFailed > 1 ? "es" : ""} failed.` : "",
-        calendarFailed ? `${calendarFailed} calendar push${calendarFailed > 1 ? "es" : ""} failed.` : "",
-        calendarNeedsReconnect ? "Google Calendar needs to be reconnected for this project." : "",
-        slackFailed
-          ? `${slackFailed} Slack update${slackFailed > 1 ? "s need" : " needs"} attention (${slackIssues[0].slack_delivery_status}).`
-          : "",
-        jiraErrorSample ? `Jira: ${jiraErrorSample}` : "",
-        calendarErrorSample ? `Calendar: ${calendarErrorSample}` : "",
-      ].filter(Boolean);
-      const noTasksSubmitted = confirmed.length === 0;
-      setPushToast({
-        title: noTasksSubmitted
-          ? "No tasks selected"
-          : failureLines.length
-            ? "Delivery completed with issues"
-            : "Delivery completed",
-        successes: successLines,
-        failures: failureLines,
-        generatedAt: new Date().toLocaleTimeString(),
-      });
+      await confirmMeetingTasks(result.meeting_id, toConfirmTasks(reviewRows), deliveryTargets);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unknown confirmation error");
     } finally {
@@ -626,7 +552,6 @@ export default function App() {
     <main
       className={[
         "app-shell",
-        `accent-${preferences.accent}`,
         preferences.darkMode ? "theme-dark" : "",
         preferences.compactMode ? "compact-mode" : "",
         preferences.reduceMotion ? "reduce-motion" : "",
@@ -634,77 +559,39 @@ export default function App() {
         .filter(Boolean)
         .join(" ")}
     >
+      <header className="page-header">
+        <h1 className="site-title">debrief</h1>
+        <p className="current-tab">{page === "home" ? "Review" : page === "teams" ? "Teams" : "Settings"}</p>
+      </header>
+
       <nav className="app-nav">
-        <strong className="brand-mark">debrief</strong>
         <div className="nav-actions">
-          <button className={page === "review" ? "nav-button active" : "nav-button"} onClick={() => setPage("review")} type="button">
-            Review
+          <button className={page === "home" ? "nav-button active" : "nav-button"} onClick={() => setPage("home")} type="button">
+            Home
           </button>
           <button className={page === "teams" ? "nav-button active" : "nav-button"} onClick={() => setPage("teams")} type="button">
             Teams
           </button>
           <button className={page === "profile" ? "nav-button active" : "nav-button"} onClick={() => setPage("profile")} type="button">
-            Profile
+            Settings
           </button>
-          <button className={page === "readme" ? "nav-button active" : "nav-button"} onClick={() => setPage("readme")} type="button">
-            README
-          </button>
-          <button className="secondary-button" onClick={() => setAuthenticated(false)} type="button">
+          <button className="secondary-button" onClick={() => setShowLogoutConfirm(true)} type="button">
             Logout
           </button>
         </div>
       </nav>
 
-      <section className="status-ribbon">
-        <span>signed in as leka</span>
-        <strong>{page === "teams" ? "team directory" : page === "profile" ? "preferences" : page === "readme" ? "project guide" : "host review"}</strong>
-        <span>{result ? `extraction: ${result.extraction_mode}` : `${projects.length} projects loaded`}</span>
-      </section>
-
       {error ? <div className="banner banner-error">{error}</div> : null}
-      {successMessage ? <div className="banner banner-success">{successMessage}</div> : null}
-      {pushToast ? (
-        <div className="push-toast">
-          <button className="toast-close" onClick={() => setPushToast(null)} type="button">
-            x
-          </button>
-          <div className="toast-heading">
-            <strong>{pushToast.title}</strong>
-            <span className="muted">{pushToast.generatedAt}</span>
-          </div>
-          {pushToast.successes.length ? (
-            <div className="toast-section toast-success">
-              <strong>Succeeded</strong>
-              {pushToast.successes.map((item) => (
-                <p key={item}>{item}</p>
-              ))}
-            </div>
-          ) : null}
-          {pushToast.failures.length ? (
-            <div className="toast-section toast-failure">
-              <strong>Failed</strong>
-              {pushToast.failures.map((item) => (
-                <p key={item}>{item}</p>
-              ))}
-            </div>
-          ) : null}
-          {!pushToast.successes.length && !pushToast.failures.length ? (
-            <div className="toast-section">
-              <p>No included tasks were submitted. Select at least one member task before confirming.</p>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+
+      {preferences.darkMode ? <div className="cursor-glow" ref={glowRef} style={{ left: cursorPos.x, top: cursorPos.y }} /> : null}
 
       {page === "teams" ? (
-        <TeamManagementPage busy={busy} onError={setError} onRefresh={refreshProjects} projects={projects} />
+        <TeamManagementPage busy={busy} onClearMessages={() => setError(null)} onError={setError} onRefresh={refreshProjects} projects={projects} />
       ) : page === "profile" ? (
         <ProfilePreferencesPage
           preferences={preferences}
           onPreferencesChange={(updates) => setPreferences((current) => ({ ...current, ...updates }))}
         />
-      ) : page === "readme" ? (
-        <ReadmePage />
       ) : (
         <>
           <UploadPanel busy={busy} onSubmit={handleExtract} projects={projects} />
@@ -727,6 +614,38 @@ export default function App() {
           ) : null}
         </>
       )}
+
+      <button
+        className="theme-toggle-btn"
+        onClick={() => setPreferences((prev) => ({ ...prev, darkMode: !prev.darkMode }))}
+        type="button"
+      >
+        {preferences.darkMode ? "\u2600" : "\u263E"}
+      </button>
+
+      {showLogoutConfirm ? (
+        <section className="fullscreen-window">
+          <div className="logout-confirm-card">
+            <h2>Logout?</h2>
+            <p className="muted">You will need to sign in again.</p>
+            <div className="logout-actions">
+              <button className="secondary-button" onClick={() => setShowLogoutConfirm(false)} type="button">
+                Cancel
+              </button>
+              <button
+                className="danger-button"
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  setAuthenticated(false);
+                }}
+                type="button"
+              >
+                Yes, logout
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

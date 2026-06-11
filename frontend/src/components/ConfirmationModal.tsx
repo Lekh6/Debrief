@@ -179,14 +179,18 @@ export function ConfirmationModal({
             {activeRow && activeRowIndex >= 0 ? (
               <article className={activeRow.included ? "member-editor included" : "member-editor"}>
                 <div className="member-heading">
-                  <label className="member-include">
-                    <input
-                      checked={activeRow.included}
-                      type="checkbox"
-                      onChange={(event) => onRowChange(activeRowIndex, { included: event.target.checked })}
-                    />
+                  <div className="member-include">
+                    <label className="toggle-switch">
+                      <input
+                        checked={activeRow.included}
+                        type="checkbox"
+                        onChange={(event) => onRowChange(activeRowIndex, { included: event.target.checked })}
+                      />
+                      <span className="toggle-track"><span className="toggle-thumb" /></span>
+                    </label>
+                    <span className="include-label">Include</span>
                     <strong>{activeRow.employee_name}</strong>
-                  </label>
+                  </div>
                   <span>{activeRow.team}</span>
                 </div>
 
@@ -230,14 +234,18 @@ export function ConfirmationModal({
             return (
               <article className={row.included ? "member-editor included" : "member-editor"} key={row.employee_id}>
                 <div className="member-heading">
-                  <label className="member-include">
-                    <input
-                      checked={row.included}
-                      type="checkbox"
-                      onChange={(event) => onRowChange(rowIndex, { included: event.target.checked })}
-                    />
+                  <div className="member-include">
+                    <label className="toggle-switch">
+                      <input
+                        checked={row.included}
+                        type="checkbox"
+                        onChange={(event) => onRowChange(rowIndex, { included: event.target.checked })}
+                      />
+                      <span className="toggle-track"><span className="toggle-thumb" /></span>
+                    </label>
+                    <span className="include-label">Include</span>
                     <strong>{row.employee_name}</strong>
-                  </label>
+                  </div>
                   <span>{row.team}</span>
                 </div>
 

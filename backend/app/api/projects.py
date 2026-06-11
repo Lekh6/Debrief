@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 
@@ -47,7 +49,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
-def get_project(project_id: str, db: Session = Depends(get_db)) -> Project:
+def get_project(project_id: UUID, db: Session = Depends(get_db)) -> Project:
     project = (
         db.query(Project)
         .options(selectinload(Project.employees))
@@ -60,7 +62,7 @@ def get_project(project_id: str, db: Session = Depends(get_db)) -> Project:
 
 
 @router.post("/{project_id}/employees", response_model=EmployeeRead, status_code=status.HTTP_201_CREATED)
-def create_project_employee(project_id: str, payload: EmployeeCreate, db: Session = Depends(get_db)) -> Employee:
+def create_project_employee(project_id: UUID, payload: EmployeeCreate, db: Session = Depends(get_db)) -> Employee:
     project = db.query(Project).filter(Project.project_id == project_id).one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")

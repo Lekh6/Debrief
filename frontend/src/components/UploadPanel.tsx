@@ -106,11 +106,9 @@ export function UploadPanel({ projects, onSubmit, busy }: UploadPanelProps) {
   return (
     <section className="panel upload-panel">
       <div className="panel-heading">
-        <p className="eyebrow">Phase 1 Intake</p>
         <h2>Capture audio or paste transcript</h2>
         <p className="muted">
-          Record live meeting audio or upload files. Audio is transcribed by faster-whisper locally, then sent to Gemini for
-          summary and task extraction.
+          Record live meeting audio or upload files. Automatically updates slack, jira and google cal.
         </p>
       </div>
 
@@ -118,7 +116,7 @@ export function UploadPanel({ projects, onSubmit, busy }: UploadPanelProps) {
         <label>
           <span>Project</span>
           <select required value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-            <option value="">Select demo project</option>
+            <option value="">Project</option>
             {projects.map((project) => (
               <option key={project.project_id} value={project.project_id}>
                 {project.name} | {project.project_id}

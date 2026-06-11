@@ -121,6 +121,110 @@ This file captures significant implementation and debugging changes so context c
 - Added executable diagnostic script that prints real DM and channel destination evidence for current workspace/project configuration.
   - File: `scripts/slack_route_diagnostics.py`
 
+#### 2026-06-11 - Channel ID prefix guard + decoupled delivery status
+
+- `publish_transcript` now validates channel ID starts with `C` before posting, mirroring the D-prefix guard in `send_task_dm`.
+  - File: `backend/app/services/integrations/slack.py`
+- `confirm_meeting_tasks` no longer merges channel+DM status into a single `"delivered"`; channel and DM outcomes are always reported independently (e.g. `channel_delivered;dm_delivered`, `channel_failed;dm_missing_recipient`).
+  - File: `backend/app/api/meetings.py`
+- Frontend Slack status parsing updated for the always-combined format.
+  - File: `frontend/src/App.tsx`
+- Added `test_channel_publish_rejects_non_channel_prefix` verifying C-prefix guard with zero API calls.
+  - File: `backend/tests/test_slack_integration.py`
+
+#### 2026-06-11 - UI cleanup + Slack message separators + API fixes
+
+- Removed README page from top navigation bar and removed accent picker from Profile settings.
+  - File: `frontend/src/App.tsx`
+  - File: `frontend/src/styles/app.css`
+- Fixed `project_id` type from `str` to `UUID` in `get_project` and `create_project_employee` endpoints for proper FastAPI validation.
+  - File: `backend/app/api/projects.py`
+- Fixed dark mode accent colors: `--accent` and `--accent-2` now defined in `body.theme-dark` to prevent invisible ink-accent text on dark backgrounds.
+  - File: `frontend/src/styles/app.css`
+- Added dark mode cursor glow: a large radial-gradient blur div that follows the mouse in dark mode for a subtle light halo around the cursor.
+  - File: `frontend/src/App.tsx`
+  - File: `frontend/src/styles/app.css`
+- Replaced `mix-blend-mode: multiply` on `body::before` with `opacity: 0.4` to reduce rendering artifacts.
+  - File: `frontend/src/styles/app.css`
+- Added smooth transitions on `.panel`, `.banner`, and `.app-shell` for theme switching and layout changes.
+  - File: `frontend/src/styles/app.css`
+- Slack transcript and DM messages now include `=====` separator banners to clearly distinguish channel transcript posts from individual task-assignment DMs.
+  - File: `backend/app/services/integrations/slack.py`
+  - File: `backend/tests/test_slack_integration.py`
+
+#### 2026-06-11 — Toggle switches, dark mode polish, logout confirm, Profile→Settings, 422 fix, refresh isolation
+
+- Added `backend/app/api/__init__.py` (empty) for Python package resolution.
+  - File: `backend/app/api/__init__.py`
+- `addProjectMember` now parses FastAPI 422 `detail` arrays into readable error strings.
+  - File: `frontend/src/lib/api.ts`
+- `handleAddMember` now clears error/success state before the try block and isolates `onRefresh()` failure via `.catch(() => {})` so success state is never overwritten by polling errors.
+  - File: `frontend/src/App.tsx`
+- Profile nav button and Preferences page eyebrow renamed from "Profile" to "Settings".
+  - File: `frontend/src/App.tsx`
+- Logout now shows a confirmation overlay with a red `danger-button` and Cancel option.
+  - File: `frontend/src/App.tsx`
+  - File: `frontend/src/styles/app.css`
+- Added floating moon/sun dark mode toggle button (fixed top-right, crescent/sun unicode symbols) with explicit `color: var(--ink)` to ensure visibility in dark mode.
+  - File: `frontend/src/App.tsx`
+  - File: `frontend/src/styles/app.css`
+- All native `<input type="checkbox">` replaced with custom animated toggle switches:
+  - Profile preferences (compact mode, reduce motion, card review, dark mode)
+  - ConfirmationModal member include (both card-rail and grid views)
+  - Uses `.toggle-switch` / `.toggle-track` / `.toggle-thumb` with sliding transform on `:checked`.
+  - File: `frontend/src/App.tsx`
+  - File: `frontend/src/components/ConfirmationModal.tsx`
+  - File: `frontend/src/styles/app.css`
+- Added "Include" label text beside each member toggle in ConfirmationModal.
+  - File: `frontend/src/components/ConfirmationModal.tsx`
+  - File: `frontend/src/styles/app.css`
+- CSS fixes/consistency:
+  - Background grid `background-size` unified to 18px in both modes (was 20px in dark).
+  - `.transcript-content` and `.summary-row p` color overridden in dark mode to `var(--ink)` (was invisible `var(--bg-soft)` on black panel).
+  - `.member-select-card` and `.member-editor` borders use `var(--line)` instead of hardcoded `rgba(5,5,5,…)`.
+  - Removed redundant `body.theme-dark .app-shell` transition block.
+  - File: `frontend/src/styles/app.css`
+
+#### 2026-06-11 — Color consistency: eliminate all green from both modes
+
+- Light mode `--accent` changed from `#7c9f84` (olive green) to `#c4966e` (warm sand/tan). No green remains in light mode.
+- Dark mode `--accent` changed from `#8fb899` (green) to `#dacf6a` (warm sand/yellow). No green remains in dark mode.
+- Dark mode `--accent-2` changed from `#dacf6a` back to `#cf7e6d` (terracotta, same as light mode).
+- All hardcoded green rgba values updated to match new accent colors:
+  - Body background radial blobs (light + dark)
+  - `input:focus` box-shadows (light + dark)
+  - `body.theme-dark .primary-button` box-shadows
+- File: `frontend/src/styles/app.css`
+
+#### 2026-06-11 — Nav restructure, UploadPanel copy, debug extraction, dark mode beige-ification
+
+- Nav bar restructured:
+  - Removed "debrief" brand-mark pill from inside the nav bar.
+  - Added `.page-header` above the nav: `<h1 class="site-title">debrief</h1>` (font-only text logo in top-left) + `<p class="current-tab">` showing current page name below it.
+  - Removed `.status-ribbon` entirely (signed-in-as, tab label, projects-loaded text).
+  - Renamed "Review" nav button → "Home".
+  - `AppPage` type changed from `"review" | "teams" | "profile"` to `"home" | "teams" | "profile"`.
+  - File: `frontend/src/App.tsx`
+  - File: `frontend/src/styles/app.css` (added `.page-header`, `.site-title`, `.current-tab`)
+- UploadPanel copy changes:
+  - Removed "Phase 1 Intake" eyebrow heading.
+  - Changed subtitle to: "Record live meeting audio or upload files. Automatically updates slack, jira and google cal."
+  - Changed `<option>` placeholder from "Select demo project" → "Project".
+  - File: `frontend/src/components/UploadPanel.tsx`
+- Debug code extracted to `frontend/src/lib/debug.tsx`:
+  - Created separate file with `DEBUG_ENABLED = false` flag.
+  - Contains `PushToastState` interface, `buildPushToast()`, `DebugPushToast` component, `DebugBanners` component — all guarded by `DEBUG_ENABLED`.
+  - To re-enable: set `DEBUG_ENABLED = true` and import/use the components in App.tsx.
+  - Stripped all delivery-status tracking (`jira_status`, `slack_delivery_status`, etc.) from `handleConfirm` in App.tsx.
+  - Removed `pushToast`, `successMessage` state and all related JSX from App.tsx.
+  - Keep `error` state for critical extraction/confirm failures only.
+  - File: `frontend/src/lib/debug.tsx`
+  - File: `frontend/src/App.tsx`
+- Dark mode accent adjusted more beige/less yellow:
+  - `--accent` changed from `#dacf6a` (yellow sand) → `#c9b692` (warm beige/tan).
+  - All hardcoded rgba references updated from `218, 207, 106` → `201, 182, 146`.
+  - File: `frontend/src/styles/app.css`
+
 ### Integration Diagnostics (latest run)
 
 - Jira diagnostics currently return authentication/authorization failures (`401`, project permission errors).
